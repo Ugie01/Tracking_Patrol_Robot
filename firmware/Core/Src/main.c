@@ -52,8 +52,8 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-uint8_t bl_data;          // 방금 막 들어온 따끈따끈한 데이터 1개
-uint8_t bl_buffer[6];     // 6개가 다 찰 때까지 모아둘 바구니
+uint8_t bl_data;
+uint8_t bl_buffer[6];
 int bl_index = 0;
 
 
