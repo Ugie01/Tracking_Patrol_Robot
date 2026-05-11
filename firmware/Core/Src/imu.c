@@ -5,6 +5,12 @@ char rx_buffer[100];
 int buffer_idx = 0;
 int data_ready = 0;
 
+// 필터링 전용
+static float roll_f = 0.0f;
+static float pitch_f = 0.0f;
+static float yaw_f = 0.0f;
+static float alpha = 0.95f;
+
 extern IMU_Data imu_data;
 
 void IMU_ReadData(void) {
@@ -15,6 +21,19 @@ void IMU_ReadData(void) {
 	    }
 	    data_ready = 0;
 	}
+}
+
+/*
+ * 필터링 (상보 필터 적용)
+ */
+void IMU_Filter(IMU_Data *data) {
+	roll_f  = alpha * data->roll  + (1.0f - alpha) * roll_f;
+	pitch_f = alpha * data->pitch + (1.0f - alpha) * pitch_f;
+	yaw_f   = alpha * data->yaw   + (1.0f - alpha) * yaw_f;
+
+	data->roll_f  = roll_f;
+	data->pitch_f = pitch_f;
+	data->yaw_f   = yaw_f;
 }
 
 void IMU_RxCallback(void) {
