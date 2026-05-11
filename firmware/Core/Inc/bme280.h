@@ -16,6 +16,8 @@ void BME280_ReadCalibration(void);
 
 void BME280_ReadData(BME280_Data *data);
 
+float BME280_Filter(float new_temp);
+
 void BEM280_Init(void);
 
 
