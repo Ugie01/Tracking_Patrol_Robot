@@ -52,16 +52,25 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
+uint8_t robot_mode = 0;       // 0: 수동, 1: 트래킹
+
 uint8_t bl_data;
-uint8_t bl_buffer[6];
+uint8_t bl_buffer[7];
 int bl_index = 0;
+
+// --- [라즈베리 파이(UART1) 변수] ---
+uint8_t rpi_rx_data;
+uint8_t rpi_buffer[4];
+uint8_t rpi_index = 0;
+uint8_t track_dir = 0;
+uint8_t track_speed = 0;
 
 
 BME280_Data bme_data = {0};
 IMU_Data imu_data = {0};
 SensorPacket packet = {0};
 
-char msg[128];
+char msg[256];
 
 /* USER CODE END PV */
 
@@ -118,8 +127,11 @@ int main(void)
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1); // 왼쪽 모터 속도 엔진 START
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_2); // 오른쪽 모터 속도 엔진 START
 
-  // 블루투스 신호 대기 (1바이트씩 인터럽트 방식으로 받기)
-  HAL_UART_Receive_IT(&huart4, &bl_data, 1);
+  // 2. 블루투스(UART4) 신호 대기 시작
+   HAL_UART_Receive_IT(&huart4, &bl_data, 1);
+
+   // 3. 라즈베리 파이(USART1) 신호 대기 시작
+   HAL_UART_Receive_IT(&huart1, &rpi_rx_data, 1);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -131,15 +143,21 @@ int main(void)
     /* USER CODE BEGIN 3 */
 	  BME280_ReadData(&bme_data);
 	  IMU_ReadData();
+	  IMU_Filter(&imu_data);
 
 	  packet.bme_data = bme_data;
 	  packet.imu_data = imu_data;
 
-	  sprintf(msg, "온도:%f roll:%f pitch:%f yaw:%f\r\n",
+	  sprintf(msg, "온도:%f roll:%f pitch:%f yaw:%f temperature_f:%f roll_f: %f pitch: %f yaw: %f \r\n",
 	          packet.bme_data.temperature,
 	          packet.imu_data.roll,
 	          packet.imu_data.pitch,
-	          packet.imu_data.yaw);
+	          packet.imu_data.yaw,
+			  packet.bme_data.temperature_f,
+			  packet.imu_data.roll_f,
+			  packet.imu_data.pitch_f,
+			  packet.imu_data.yaw_f
+	  );
 
 	  HAL_UART_Transmit(&huart2, (uint8_t*)msg, strlen(msg), 100);
 
@@ -225,20 +243,31 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 	if (huart->Instance == USART3) {
 		IMU_RxCallback();
 } else if (huart->Instance == UART4) {
-	bl_buffer[bl_index++] = bl_data; // 바구니에 담고 번호 +1
+	if(huart->Instance == UART4) {
+	        bl_buffer[bl_index++] = bl_data;
 
-		if(bl_index >= 6) { // 6개가 다 모였다면?
-			// 패킷 검사 (시작: 0xAA, 끝: 0x55)
-			if(bl_buffer[0] == 0xAA && bl_buffer[5] == 0x55) {
-				// 데이터 순서: [0]AA [1]L방향 [2]L속도 [3]R방향 [4]R속도 [5]55
-				Move_Robot(bl_buffer[1], bl_buffer[2], bl_buffer[3], bl_buffer[4]);
-			}
-			bl_index = 0; // 바구니 비우기 (초기화)
-		}
+	        if(bl_buffer[0] != 0xAA) {
+	            bl_index = 0;
+	        }
+	        else if(bl_index >= 7) {
+	            if(bl_buffer[6] == 0x55) {
 
-		// 중요: 다음 데이터를 받기 위해 다시 수신 대기 상태로 만듦
-		HAL_UART_Receive_IT(&huart4, &bl_data, 1);
-}
+	                // [조언 반영: 안전한 모드 전환 로직]
+	                if(robot_mode != bl_buffer[1]) {
+	                    Move_Robot(0, 0, 0, 0); // 모드가 바뀔 때 일단 정지하여 사고 방지
+	                    robot_mode = bl_buffer[1];
+	                }
+
+	                // 수동 모드(0)일 때만 스마트폰 데이터로 구동
+	                if(robot_mode == 0) {
+	                    Move_Robot(bl_buffer[2], bl_buffer[3], bl_buffer[4], bl_buffer[5]);
+	                }
+	            }
+	            bl_index = 0;
+	        }
+	        HAL_UART_Receive_IT(&huart4, &bl_data, 1);
+	    }
+	}
 }
 /* USER CODE END 4 */
 
