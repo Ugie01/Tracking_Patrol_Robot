@@ -21,7 +21,7 @@ void BME280_ReadCalibration(void) {
 }
 
 /*
- * BME280 센서에서 온도 raw값을 읽어서 실제 온도로 변환
+ * BME280 센서에서 온도 raw값을 읽어서 필터링 적용
  */
 void BME280_ReadData(BME280_Data *data) {
 	uint8_t raw[3];
@@ -35,8 +35,8 @@ void BME280_ReadData(BME280_Data *data) {
 	t_fine = var1 + var2;
 
 	float raw_tmp = (float)((t_fine * 5 + 128) >> 8) / 100.0f;
-
-	data->temperature = BME280_Filter(raw_tmp);
+	data->temperature = raw_tmp ;
+	data->temperature_f = BME280_Filter(raw_tmp);
 }
 
 /*
