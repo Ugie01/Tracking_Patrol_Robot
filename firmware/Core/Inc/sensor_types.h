@@ -10,12 +10,16 @@
 
 typedef struct {
 	float temperature;
+	float temperature_f;
 } BME280_Data;
 
 typedef struct {
     float roll;
+    float roll_f;
     float pitch;
+    float pitch_f;
     float yaw;
+    float yaw_f;
 } IMU_Data;
 
 typedef struct {
