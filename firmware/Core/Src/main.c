@@ -59,7 +59,7 @@ BME280_Data bme_data = {0};
 IMU_Data imu_data = {0};
 SensorPacket packet = {0};
 
-char msg[128];
+char msg[256];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -131,11 +131,16 @@ int main(void)
 
 	  Process_By_Mode();
 
-	  sprintf(msg, "온도:%f roll:%f pitch:%f yaw:%f\r\n",
+	  sprintf(msg, "온도:%f roll:%f pitch:%f yaw:%f temperature_f:%f roll_f: %f pitch: %f yaw: %f \r\n",
 	          packet.bme_data.temperature,
 	          packet.imu_data.roll,
 	          packet.imu_data.pitch,
-	          packet.imu_data.yaw);
+	          packet.imu_data.yaw,
+			  packet.bme_data.temperature_f,
+			  packet.imu_data.roll_f,
+			  packet.imu_data.pitch_f,
+			  packet.imu_data.yaw_f
+	  );
 
 	  HAL_UART_Transmit(&huart2, (uint8_t*)msg, strlen(msg), 100);
 
