@@ -32,6 +32,9 @@
 #include "sensor_types.h"
 #include "bme280.h"
 #include "imu.h"
+#include "blt.h"
+#include "mode.h"
+#include "motor.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -52,26 +55,11 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-uint8_t robot_mode = 0;       // 0: 수동, 1: 트래킹
-
-uint8_t bl_data;
-uint8_t bl_buffer[7];
-int bl_index = 0;
-
-// --- [라즈베리 파이(UART1) 변수] ---
-uint8_t rpi_rx_data;
-uint8_t rpi_buffer[4];
-uint8_t rpi_index = 0;
-uint8_t track_dir = 0;
-uint8_t track_speed = 0;
-
-
 BME280_Data bme_data = {0};
 IMU_Data imu_data = {0};
 SensorPacket packet = {0};
 
 char msg[256];
-
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -120,18 +108,12 @@ int main(void)
   MX_USART1_UART_Init();
   MX_UART4_Init();
   MX_CRC_Init();
+
   /* USER CODE BEGIN 2 */
   BME280_Init();
   IMU_Init();
-
-  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1); // 왼쪽 모터 속도 엔진 START
-  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_2); // 오른쪽 모터 속도 엔진 START
-
-  // 2. 블루투스(UART4) 신호 대기 시작
-   HAL_UART_Receive_IT(&huart4, &bl_data, 1);
-
-   // 3. 라즈베리 파이(USART1) 신호 대기 시작
-   HAL_UART_Receive_IT(&huart1, &rpi_rx_data, 1);
+  Motor_Init();
+  BLT_Init();
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -143,10 +125,11 @@ int main(void)
     /* USER CODE BEGIN 3 */
 	  BME280_ReadData(&bme_data);
 	  IMU_ReadData();
-	  IMU_Filter(&imu_data);
 
 	  packet.bme_data = bme_data;
 	  packet.imu_data = imu_data;
+
+	  Process_By_Mode();
 
 	  sprintf(msg, "온도:%f roll:%f pitch:%f yaw:%f temperature_f:%f roll_f: %f pitch: %f yaw: %f \r\n",
 	          packet.bme_data.temperature,
@@ -214,59 +197,11 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
-void Move_Robot(uint8_t left_dir, uint8_t left_speed, uint8_t right_dir, uint8_t right_speed) {
-    // 왼쪽 모터 방향 (1: 전진, 0: 후진)
-    if(left_dir == 1) {
-    	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_0, GPIO_PIN_SET);   // PC0을 High로
-		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_1, GPIO_PIN_RESET); // PC1을 Low로
-    } else {
-    	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_0, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_1, GPIO_PIN_SET);
-    }
-
-    if(right_dir == 1) {
-		// 전진 신호(1)가 왔을 때, 반대로 돌게 함
-		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_2, GPIO_PIN_RESET); // SET -> RESET으로 수정
-		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_3, GPIO_PIN_SET);   // RESET -> SET으로 수정
-	} else {
-		// 후진 신호(0)가 왔을 때
-		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_2, GPIO_PIN_SET);   // RESET -> SET으로 수정
-		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_3, GPIO_PIN_RESET); // SET -> RESET으로 수정
-	}
-
-    // 속도 제어 (ARR이 255이므로 받은 데이터 그대로 사용)
-    __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, left_speed);
-    __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, right_speed);
-}
-
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 	if (huart->Instance == USART3) {
 		IMU_RxCallback();
-} else if (huart->Instance == UART4) {
-	if(huart->Instance == UART4) {
-	        bl_buffer[bl_index++] = bl_data;
-
-	        if(bl_buffer[0] != 0xAA) {
-	            bl_index = 0;
-	        }
-	        else if(bl_index >= 7) {
-	            if(bl_buffer[6] == 0x55) {
-
-	                // [조언 반영: 안전한 모드 전환 로직]
-	                if(robot_mode != bl_buffer[1]) {
-	                    Move_Robot(0, 0, 0, 0); // 모드가 바뀔 때 일단 정지하여 사고 방지
-	                    robot_mode = bl_buffer[1];
-	                }
-
-	                // 수동 모드(0)일 때만 스마트폰 데이터로 구동
-	                if(robot_mode == 0) {
-	                    Move_Robot(bl_buffer[2], bl_buffer[3], bl_buffer[4], bl_buffer[5]);
-	                }
-	            }
-	            bl_index = 0;
-	        }
-	        HAL_UART_Receive_IT(&huart4, &bl_data, 1);
-	    }
+} 	else if (huart->Instance == UART4) {
+		BLT_ProcessPacket();
 	}
 }
 /* USER CODE END 4 */
