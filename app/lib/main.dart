@@ -139,7 +139,7 @@ class _UnifiedControlScreenState extends State<UnifiedControlScreen> {
           children: [
             Container(width: 12, height: 12, decoration: BoxDecoration(shape: BoxShape.circle, color: _isConnected ? Colors.green : Colors.red)),
             const SizedBox(width: 10),
-            const Text('Fixed Value Controller'),
+            const Text('Tracking Robot Controller'),
           ],
         ),
       ),
