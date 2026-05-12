@@ -22,11 +22,9 @@ static uint8_t imu_buf_count = 0;
 void IMU_ReadData(void) {
 	if (data_ready == 1) {
 	    if (rx_buffer[0] == '*') {
-	    	char *ptr = rx_buffer + 1;
-	    	char *end;
+	    	float roll, pitch;
+		    sscanf(rx_buffer, "*%f,%f,%f", &roll, &pitch, &imu_data.yaw);
 
-	    	imu_data.yaw = strtof(ptr, &end);
-	    	ptr = end + 1;
 
 			IMU_Filter(&imu_data);
 
