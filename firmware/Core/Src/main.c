@@ -35,6 +35,7 @@
 #include "blt.h"
 #include "mode.h"
 #include "motor.h"
+#include "navigation.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -60,6 +61,11 @@ IMU_Data imu_data = {0};
 SensorPacket packet = {0};
 
 char msg[256];
+
+extern PID_Navigation nav;
+extern uint8_t is_straight_requested;
+extern uint8_t target_speed;
+extern uint8_t target_dir;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -114,6 +120,7 @@ int main(void)
   IMU_Init();
   Motor_Init();
   BLT_Init();
+  Nav_Init(2.0f, 0.0f, 0.0f); // PID 튜닝위해 초기값 설정 Kp=2.0
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -142,10 +149,19 @@ int main(void)
 			  packet.imu_data.yaw_f
 	  );
 
+	  if (is_straight_requested) {
+	      char pid_msg[128];
+	      sprintf(pid_msg, ">>> PID LOG: Err:%.2f, Out:%.2f\r\n", nav.error, nav.output);
+	      strcat(msg, pid_msg);
+	  }
+
+	  // PC로 전송
 	  HAL_UART_Transmit(&huart2, (uint8_t*)msg, strlen(msg), 100);
 
 	  // 라즈베리 파이로 전송
 	  HAL_UART_Transmit(&huart1, (uint8_t*)&packet, sizeof(SensorPacket), 100);
+
+	  HAL_Delay(20);
   }
   /* USER CODE END 3 */
 }
