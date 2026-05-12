@@ -5,9 +5,9 @@
  *      Author: KCCISTC
  */
 
-
 #include "motor.h"
 #include "tim.h"
+#include <stdlib.h>
 
 extern TIM_HandleTypeDef htim2;
 
@@ -39,7 +39,19 @@ void Move_Robot(uint8_t left_dir, uint8_t left_speed, uint8_t right_dir, uint8_t
     __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, right_speed);
 }
 
-
 void Stop_Robot(void) {
     Move_Robot(0, 0, 0, 0);
+}
+
+void Motor_SetSpeed(int16_t left, int16_t right) {
+    uint8_t l_dir = (left >= 0) ? DIR_FORWARD : DIR_BACKWARD;
+    uint8_t r_dir = (right >= 0) ? DIR_FORWARD : DIR_BACKWARD;
+
+    uint16_t l_spd = abs(left);
+    uint16_t r_spd = abs(right);
+
+    if (l_spd > MOTOR_MAX_SPEED) l_spd = MOTOR_MAX_SPEED;
+    if (r_spd > MOTOR_MAX_SPEED) r_spd = MOTOR_MAX_SPEED;
+
+    Move_Robot(l_dir, (uint8_t)l_spd, r_dir, (uint8_t)r_spd);
 }

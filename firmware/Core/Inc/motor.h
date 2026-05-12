@@ -17,5 +17,6 @@
 void Motor_Init(void);
 void Move_Robot(uint8_t left_dir, uint8_t left_speed, uint8_t right_dir, uint8_t right_speed);
 void Stop_Robot(void);
+void Motor_SetSpeed(int16_t left_speed, int16_t right_speed);
 
 #endif /* INC_MOTOR_H_ */
