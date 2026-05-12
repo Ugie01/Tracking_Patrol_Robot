@@ -35,6 +35,7 @@
 #include "blt.h"
 #include "mode.h"
 #include "motor.h"
+#include "uart_protocol.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -123,26 +124,18 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  BME280_ReadData(&bme_data);
 	  IMU_ReadData();
+	  BME280_ReadData(&bme_data);
+
+	  IMU_Data matched = IMU_FindClosest(bme_data.bme_tick);
 
 	  packet.bme_data = bme_data;
-	  packet.imu_data = imu_data;
+	  packet.imu_data = matched;
+	  packet.tick = bme_data.bme_tick;
 
 	  Process_By_Mode();
 
-	  sprintf(msg, "온도:%f roll:%f pitch:%f yaw:%f temperature_f:%f roll_f: %f pitch: %f yaw: %f \r\n",
-	          packet.bme_data.temperature,
-	          packet.imu_data.roll,
-	          packet.imu_data.pitch,
-	          packet.imu_data.yaw,
-			  packet.bme_data.temperature_f,
-			  packet.imu_data.roll_f,
-			  packet.imu_data.pitch_f,
-			  packet.imu_data.yaw_f
-	  );
-
-	  HAL_UART_Transmit(&huart2, (uint8_t*)msg, strlen(msg), 100);
+	  UART_SendPacket(&huart2, &packet);
 
 	  // 라즈베리 파이로 전송
 	  HAL_UART_Transmit(&huart1, (uint8_t*)&packet, sizeof(SensorPacket), 100);

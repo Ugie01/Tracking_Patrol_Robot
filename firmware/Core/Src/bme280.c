@@ -35,6 +35,7 @@ void BME280_ReadData(BME280_Data *data) {
 	t_fine = var1 + var2;
 
 	float raw_tmp = (float)((t_fine * 5 + 128) >> 8) / 100.0f;
+	data->bme_tick = HAL_GetTick();
 	data->temperature = raw_tmp ;
 	data->temperature_f = BME280_Filter(raw_tmp);
 }
