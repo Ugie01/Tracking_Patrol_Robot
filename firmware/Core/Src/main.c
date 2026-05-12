@@ -35,6 +35,7 @@
 #include "blt.h"
 #include "mode.h"
 #include "motor.h"
+#include "navigation.h"
 #include "uart_protocol.h"
 /* USER CODE END Includes */
 
@@ -61,6 +62,11 @@ IMU_Data imu_data = {0};
 SensorPacket packet = {0};
 
 char msg[256];
+
+extern PID_Navigation nav;
+extern uint8_t is_straight_requested;
+extern uint8_t target_speed;
+extern uint8_t target_dir;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -115,6 +121,7 @@ int main(void)
   IMU_Init();
   Motor_Init();
   BLT_Init();
+  Nav_Init(2.0f, 0.0f, 0.0f); // PID 튜닝위해 초기값 설정 Kp=2.0
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -124,9 +131,9 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  IMU_ReadData();
+      IMU_ReadData();
 	  BME280_ReadData(&bme_data);
-
+	  
 	  IMU_Data matched = IMU_FindClosest(bme_data.bme_tick);
 
 	  packet.bme_data = bme_data;
@@ -134,7 +141,7 @@ int main(void)
 	  packet.tick = bme_data.bme_tick;
 
 	  Process_By_Mode();
-
+	  
 	  UART_SendPacket(&huart2, &packet);
 
 	  // 라즈베리 파이로 전송
