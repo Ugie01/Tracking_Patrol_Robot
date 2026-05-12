@@ -54,7 +54,6 @@ def read_packet(ser: serial.Serial):
         return None
 
     data     = ser.read(length)
-    print("RAW:", data.hex())
     checksum = ser.read(1)[0]
     end      = ser.read(1)[0]
 
