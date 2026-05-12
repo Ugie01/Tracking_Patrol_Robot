@@ -9,6 +9,7 @@
 #define INC_IMU_H_
 
 #include <stdint.h>
+#include <stdlib.h>
 #include "sensor_types.h"
 #include "usart.h"
 #include "string.h"
@@ -17,5 +18,6 @@ void IMU_ReadData(void);
 void IMU_RxCallback(void);
 void IMU_Init(void);
 void IMU_Filter(IMU_Data *data);
+IMU_Data IMU_FindClosest(uint32_t target_tick) ;
 
 #endif /* INC_IMU_H_ */
