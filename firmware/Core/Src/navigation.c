@@ -35,14 +35,16 @@ void Nav_DriveStraight(int base_speed, float current_yaw) {
 
     nav.error = error;
 
-    // 시간
+    // 시간 주기
     float dt = 0.02f;
 
     // PID 연산
     float P = nav.Kp * error;
-    nav.integral += error;
+    nav.integral += error * dt;
+    if (nav.integral > 50.0f) nav.integral = 50.0f;
+    if (nav.integral < -50.0f) nav.integral = -50.0f;
     float I = nav.Ki * nav.integral;
-    float D = nav.Kd * (error - nav.prev_error);
+    float D = nav.Kd * (error - nav.prev_error) / dt;
     nav.prev_error = error;
 
     float output = P + I + D;
@@ -50,26 +52,29 @@ void Nav_DriveStraight(int base_speed, float current_yaw) {
     if (output > nav.output_limit) output = nav.output_limit;
     if (output < -nav.output_limit) output = -nav.output_limit;
 
-    int left_speed, right_speed;
+    float l_f, r_f;
 
     if (target_dir == 1) { // 전진
-        left_speed = base_speed - (int)output;
-        right_speed = base_speed + (int)output;
+        l_f = (float)base_speed - output;
+        r_f = (float)base_speed + output;
     }
     else if (target_dir == 2) { // 후진
-        left_speed = base_speed + (int)output;
-        right_speed = base_speed - (int)output;
+        l_f = (float)base_speed + output;
+        r_f = (float)base_speed - output;
     }
     else {
-        left_speed = base_speed;
-        right_speed = base_speed;
+        l_f = (float)base_speed;
+        r_f = (float)base_speed;
     }
 
     // 속도 제한 (0~255)
-    if (left_speed > 255) left_speed = 255;
-    if (left_speed < 0) left_speed = 0;
+    int left_speed = (int)l_f;
+    int right_speed = (int)r_f;
+
+    if (left_speed > 255)  left_speed = 255;
+    if (left_speed < 0)    left_speed = 0;
     if (right_speed > 255) right_speed = 255;
-    if (right_speed < 0) right_speed = 0;
+    if (right_speed < 0)   right_speed = 0;
 
     Move_Robot(target_dir, (uint8_t)left_speed, target_dir, (uint8_t)right_speed);
 }
