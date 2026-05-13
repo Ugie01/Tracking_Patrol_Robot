@@ -12,7 +12,6 @@ extern IMU_Data imu_data;
 uint8_t dma_rx_buffer[DMA_BUF_SIZE];
 char rx_buffer[DMA_BUF_SIZE];
 uint8_t rx_data;
-char rx_buffer[100];
 int buffer_idx = 0;
 int data_ready = 0;
 
@@ -29,23 +28,19 @@ static IMU_Data imu_buf[IMU_BUF_SIZE];
 static uint8_t imu_buf_head  = 0;
 static uint8_t imu_buf_count = 0;
 
-
 void IMU_ReadData(void) {
-	memcpy(rx_buffer, (char*)dma_rx_buffer, DMA_BUF_SIZE);
+    memcpy(rx_buffer, (char*)dma_rx_buffer, DMA_BUF_SIZE);
 
-	char *start_ptr = strrchr(rx_buffer, '*');
-
-	if (start_ptr != NULL) {
-		char *end_ptr = strchr(start_ptr, '\n');
-
-		if (end_ptr != NULL) {
-			float roll, pitch;
-			if (sscanf(start_ptr, "*%f,%f,%f", &roll, &pitch, &imu_data.yaw) == 3) {
-
-				IMU_Filter(&imu_data);
-			}
-		}
-	}
+    for (int i = DMA_BUF_SIZE - 20; i >= 0; i--) {
+        if (rx_buffer[i] == '*') {
+            float roll, pitch, yaw_raw;
+            if (sscanf(&rx_buffer[i], "*%f,%f,%f", &roll, &pitch, &yaw_raw) == 3) {
+                imu_data.yaw = yaw_raw;
+                IMU_Filter(&imu_data);
+                return;
+            }
+        }
+    }
 }
 
 /*
