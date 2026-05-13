@@ -10,7 +10,7 @@
 
 #include "main.h"
 
-#define BT_PACKET_SIZE  7
+#define BT_PACKET_SIZE  10
 #define BT_START_BYTE   0xAA
 #define BT_END_BYTE     0x55
 

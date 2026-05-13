@@ -115,13 +115,14 @@ int main(void)
   MX_USART1_UART_Init();
   MX_UART4_Init();
   MX_CRC_Init();
-
+  MX_TIM4_Init();
   /* USER CODE BEGIN 2 */
   BME280_Init();
   IMU_Init();
   Motor_Init();
   BLT_Init();
   Nav_Init(2.0f, 0.0f, 0.0f); // PID 튜닝위해 초기값 설정 Kp=2.0
+  HAL_TIM_Base_Start_IT(&htim4);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -131,7 +132,6 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-      IMU_ReadData();
 	  BME280_ReadData(&bme_data);
 	  
 	  IMU_Data matched = IMU_FindClosest(bme_data.bme_tick);
@@ -140,7 +140,8 @@ int main(void)
 	  packet.imu_data = matched;
 	  packet.tick = bme_data.bme_tick;
 
-	  Process_By_Mode();
+	  packet.pid_error = nav.error;
+	  packet.pid_output = nav.output;
 	  
 	  UART_SendPacket(&huart2, &packet);
 
@@ -203,6 +204,13 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 } 	else if (huart->Instance == UART4) {
 		BLT_ProcessPacket();
 	}
+}
+
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
+    if (htim->Instance == TIM4) {
+    	IMU_ReadData();
+    	Process_By_Mode();
+    }
 }
 /* USER CODE END 4 */
 
