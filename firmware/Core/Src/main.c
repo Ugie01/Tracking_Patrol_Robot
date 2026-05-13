@@ -67,6 +67,13 @@ extern PID_Navigation nav;
 extern uint8_t is_straight_requested;
 extern uint8_t target_speed;
 extern uint8_t target_dir;
+
+// raspi 통신
+static uint8_t rpi_cmd   = 0;
+static uint8_t rpi_state = 0;
+static char rpi_str_buf[32];
+static uint8_t rpi_str_idx = 0;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -115,8 +122,8 @@ int main(void)
   MX_USART1_UART_Init();
   MX_UART4_Init();
   MX_CRC_Init();
-  MX_TIM4_Init();
   /* USER CODE BEGIN 2 */
+  MX_TIM4_Init();
   BME280_Init();
   IMU_Init();
   Motor_Init();
@@ -132,21 +139,12 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  BME280_ReadData(&bme_data);
-	  
-	  IMU_Data matched = IMU_FindClosest(bme_data.bme_tick);
+      IMU_ReadData();
+      BME280_Process();
+      IMU_Process();
 
-	  packet.bme_data = bme_data;
-	  packet.imu_data = matched;
-	  packet.tick = bme_data.bme_tick;
+	  Process_By_Mode();
 
-	  packet.pid_error = nav.error;
-	  packet.pid_output = nav.output;
-	  
-	  UART_SendPacket(&huart2, &packet);
-
-	  // 라즈베리 파이로 전송
-	  HAL_UART_Transmit(&huart1, (uint8_t*)&packet, sizeof(SensorPacket), 100);
   }
   /* USER CODE END 3 */
 }
@@ -201,9 +199,48 @@ void SystemClock_Config(void)
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 	if (huart->Instance == USART3) {
 		IMU_RxCallback();
-} 	else if (huart->Instance == UART4) {
+	} else if (huart->Instance == UART4) {
 		BLT_ProcessPacket();
-	}
+	} else if (huart->Instance == USART1) {
+	      switch (rpi_state) {
+	      	  case 0:
+	      		  if (rpi_rx_buf == 0xAA) {
+	      			  rpi_state = 1;
+	      		  } else if (rpi_rx_buf == 't') {
+	      			  rpi_str_idx = 0;
+	      			  rpi_str_buf[rpi_str_idx++] = 't';
+	      			  rpi_state = 3;
+	      		  }
+			  break;
+	          case 1:
+	              rpi_cmd = rpi_rx_buf;
+	              rpi_state = 2;
+	              break;
+	          case 2:
+	              if (rpi_rx_buf == 0x55) {
+	                  if      (rpi_cmd == 0x0A) BME280_RxCallback();
+	                  else if (rpi_cmd == 0x0B) IMU_RxCallback_RPI();
+	              }
+	              rpi_state = 0;
+	              break;
+	          case 3:
+	        	  if (rpi_rx_buf == '\n') {
+	        		  rpi_str_buf[rpi_str_idx] = '\0';
+	        		  char *str = rpi_str_buf + 1;
+	        		  ////////////// 로그 테스트용
+	        		  char log[48];
+	        		  snprintf(log, sizeof(log), "[RX] t msg: %s\r\n", str);
+	        		  HAL_UART_Transmit(&huart2, (uint8_t*)log, strlen(log), 100);
+
+	        		  rpi_state = 0;
+	        	  } else {
+	        		  if (rpi_str_idx < sizeof(rpi_str_buf) - 1)
+	        			  rpi_str_buf[rpi_str_idx++] = rpi_rx_buf;
+	        	  }
+				break;
+	      }
+	      HAL_UART_Receive_IT(&huart1, &rpi_rx_buf, 1);
+	  }
 }
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
@@ -212,6 +249,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
     	Process_By_Mode();
     }
 }
+
 /* USER CODE END 4 */
 
 /**

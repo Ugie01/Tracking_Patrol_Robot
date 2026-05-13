@@ -10,15 +10,19 @@
 
 #include "sensor_types.h"
 #include "i2c.h"
+#include "usart.h"
 
+extern volatile uint8_t rpi_rx_buf;
 
 void BME280_ReadCalibration(void);
 
-void BME280_ReadData(BME280_Data *data);
+void BME280_Process(void);
 
 float BME280_Filter(float new_temp);
 
-void BEM280_Init(void);
+void BME280_RxCallback(void);
+
+void BME280_Init(void);
 
 
 #endif /* INC_BME280_H_ */

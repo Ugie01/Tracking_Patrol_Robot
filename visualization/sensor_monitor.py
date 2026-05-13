@@ -73,13 +73,13 @@ def trim_window(buf, now):
 
 
 # ── 차트 설정 ─────────────────────────────────────
-fig, axes = plt.subplots(2, 1, figsize=(12, 6))
+fig, axes = plt.subplots(3, 1, figsize=(12, 9))
 fig.patch.set_facecolor('#1a1a2e')
 fig.suptitle('센서 데이터 실시간 모니터링', fontsize=14, color='white', fontweight='bold')
-plt.subplots_adjust(hspace=0.5)
+plt.subplots_adjust(hspace=0.6)
 
-titles = ['온도 (°C)', 'Yaw (°)']
-colors = [('#ff6b6b', '#ffd93d'), ('#20c997', '#f06595')]
+titles = ['온도 (°C)', 'Yaw - 전체 범위 (°)', 'Yaw - 정밀 범위 (°)']
+colors = [('#ff6b6b', '#ffd93d'), ('#20c997', '#f06595'), ('#4d96ff', '#cc5de8')]
 
 for ax, title, (c1, c2) in zip(axes, titles, colors):
     ax.set_facecolor('#16213e')
@@ -88,6 +88,9 @@ for ax, title, (c1, c2) in zip(axes, titles, colors):
     for spine in ax.spines.values():
         spine.set_edgecolor('#333366')
     ax.grid(True, color='#333366', alpha=0.5, linewidth=0.5)
+
+axes[1].set_ylim(-180, 180)
+axes[2].set_ylim(-1, 1)
 
 lines = []
 for ax, (c1, c2) in zip(axes, colors):
@@ -100,6 +103,8 @@ axes[0].set_xlabel('시간 (초)', color='#aaaaaa', fontsize=8)
 axes[0].set_ylabel('온도 (°C)', color='#aaaaaa', fontsize=8)
 axes[1].set_xlabel('시간 (초)', color='#aaaaaa', fontsize=8)
 axes[1].set_ylabel('Yaw (°)', color='#aaaaaa', fontsize=8)
+axes[2].set_xlabel('시간 (초)', color='#aaaaaa', fontsize=8)
+axes[2].set_ylabel('Yaw (°)', color='#aaaaaa', fontsize=8)
 
 
 # ── 시리얼 읽기 스레드 ───────────────────────────
@@ -113,8 +118,9 @@ def serial_reader():
             parsed = read_packet()
             if parsed:
                 now = time.time()
+                t, tf, y, yf = parsed
+                print(f"온도={t:6.2f}°C (필터={tf:.2f}) | yaw={y:7.2f}° (필터={yf:.2f})")
                 if now - last_sample_time >= SAMPLE_INTERVAL:
-                    t, tf, y, yf = parsed
                     temperature.append((now, t))
                     temperature_f.append((now, tf))
                     yaw.append((now, y))
@@ -153,13 +159,18 @@ def update(frame):
     axes[0].relim()
     axes[0].autoscale_view(scalex=False)
 
-    # Yaw 차트 (슬라이딩 윈도우 + 동적 스케일)
+    # Yaw 전체 범위 차트 (-180 ~ 180 고정)
     xs = to_x(yaw)
     lines[1][0].set_data(xs, to_y(yaw))
     lines[1][1].set_data(xs, to_y(yaw_f))
     axes[1].set_xlim(0, WINDOW_SEC)
-    axes[1].relim()
-    axes[1].autoscale_view(scalex=False)
+    axes[1].set_ylim(-180, 180)
+
+    # Yaw 정밀 범위 차트 (-1 ~ 1 고정, 중앙 0)
+    lines[2][0].set_data(xs, to_y(yaw))
+    lines[2][1].set_data(xs, to_y(yaw_f))
+    axes[2].set_xlim(0, WINDOW_SEC)
+    axes[2].set_ylim(-1, 1)
 
     return [l for pair in lines for l in pair]
 
