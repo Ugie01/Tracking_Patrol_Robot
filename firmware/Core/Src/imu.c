@@ -1,7 +1,16 @@
 #include "imu.h"
+#include "main.h"
+#include <string.h>
+#include <stdio.h>
 
 #define IMU_BUF_SIZE 16
+#define DMA_BUF_SIZE 100
 
+extern UART_HandleTypeDef huart3;
+extern IMU_Data imu_data;
+
+uint8_t dma_rx_buffer[DMA_BUF_SIZE];
+char rx_buffer[DMA_BUF_SIZE];
 uint8_t rx_data;
 char rx_buffer[100];
 int buffer_idx = 0;
@@ -20,22 +29,20 @@ static uint8_t imu_buf_count = 0;
 
 
 void IMU_ReadData(void) {
-	if (data_ready == 1) {
-	    if (rx_buffer[0] == '*') {
-	    	float roll, pitch;
-		    sscanf(rx_buffer, "*%f,%f,%f", &roll, &pitch, &imu_data.yaw);
+	memcpy(rx_buffer, (char*)dma_rx_buffer, DMA_BUF_SIZE);
 
+	char *start_ptr = strrchr(rx_buffer, '*');
 
-			IMU_Filter(&imu_data);
+	if (start_ptr != NULL) {
+		char *end_ptr = strchr(start_ptr, '\n');
 
-			imu_data.imu_tick = HAL_GetTick();
+		if (end_ptr != NULL) {
+			float roll, pitch;
+			if (sscanf(start_ptr, "*%f,%f,%f", &roll, &pitch, &imu_data.yaw) == 3) {
 
-			// 링버퍼에 저장
-			imu_buf[imu_buf_head] = imu_data;
-			imu_buf_head = (imu_buf_head + 1) % IMU_BUF_SIZE;
-			if (imu_buf_count < IMU_BUF_SIZE) imu_buf_count++;
-	    }
-	    data_ready = 0;
+				IMU_Filter(&imu_data);
+			}
+		}
 	}
 }
 
@@ -47,44 +54,23 @@ void IMU_Filter(IMU_Data *data) {
 	data->yaw_f   = yaw_f;
 }
 
-/*
- *  링버퍼에서 target_tick과 가장 가까운 IMU_Data를 찾는 함수
- */
-IMU_Data IMU_FindClosest(uint32_t target_tick) {
-
-	IMU_Data best = imu_buf[0];
-	uint32_t best_diff = UINT32_MAX;
-
-	for (uint8_t i = 0; i < IMU_BUF_SIZE; i++) {
-		int32_t  diff     = (int32_t)(imu_buf[i].imu_tick - target_tick);
-		uint32_t abs_diff = (uint32_t)(diff < 0 ? -diff : diff);
-
-		if (abs_diff < best_diff) {
-			best_diff = abs_diff;
-			best = imu_buf[i];
-		}
-	}
-
-	return best;
-}
-
 
 
 void IMU_RxCallback(void) {
-	if (rx_data == '\n' || rx_data == '\r') {
-	    rx_buffer[buffer_idx] = '\0';
-	    data_ready = 1;
-	    buffer_idx = 0;
-	} else {
-	    if (buffer_idx < 99) {
-	        rx_buffer[buffer_idx++] = rx_data;
-	    }
-	}
+//	if (rx_data == '\n' || rx_data == '\r') {
+//	    rx_buffer[buffer_idx] = '\0';
+//	    data_ready = 1;
+//	    buffer_idx = 0;
+//	} else {
+//	    if (buffer_idx < 99) {
+//	        rx_buffer[buffer_idx++] = rx_data;
+//	    }
+//	}
 
-	HAL_UART_Receive_IT(&huart3, &rx_data, 1);
+	HAL_UART_Receive_DMA(&huart3, &rx_data, sizeof(rx_data));
 }
 
 
 void IMU_Init(void) {
-	HAL_UART_Receive_IT(&huart3, &rx_data, 1);
+	HAL_UART_Receive_DMA(&huart3, dma_rx_buffer, DMA_BUF_SIZE);
 }

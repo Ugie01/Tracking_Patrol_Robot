@@ -19,6 +19,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "crc.h"
+#include "dma.h"
 #include "i2c.h"
 #include "tim.h"
 #include "usart.h"
@@ -108,6 +109,7 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_TIM2_Init();
   MX_I2C1_Init();
   MX_USART2_UART_Init();
@@ -132,12 +134,11 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+	  IMU_ReadData();
 	  BME280_ReadData(&bme_data);
 	  
-	  IMU_Data matched = IMU_FindClosest(bme_data.bme_tick);
-
 	  packet.bme_data = bme_data;
-	  packet.imu_data = matched;
+	  packet.imu_data = imu_data;
 	  packet.tick = bme_data.bme_tick;
 
 	  packet.pid_error = nav.error;
@@ -199,16 +200,13 @@ void SystemClock_Config(void)
 
 /* USER CODE BEGIN 4 */
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
-	if (huart->Instance == USART3) {
-		IMU_RxCallback();
-} 	else if (huart->Instance == UART4) {
+ 	if (huart->Instance == UART4) {
 		BLT_ProcessPacket();
 	}
 }
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
     if (htim->Instance == TIM4) {
-    	IMU_ReadData();
     	Process_By_Mode();
     }
 }

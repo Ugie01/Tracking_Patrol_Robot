@@ -18,6 +18,5 @@ void IMU_ReadData(void);
 void IMU_RxCallback(void);
 void IMU_Init(void);
 void IMU_Filter(IMU_Data *data);
-IMU_Data IMU_FindClosest(uint32_t target_tick) ;
 
 #endif /* INC_IMU_H_ */
