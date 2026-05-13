@@ -12,6 +12,7 @@ static float yaw_f = 0.0f;
 static float alpha = 0.95f;
 
 extern IMU_Data imu_data;
+static volatile uint8_t imu_request_flag = 0;
 
 // 링버퍼
 static IMU_Data imu_buf[IMU_BUF_SIZE];
@@ -24,7 +25,6 @@ void IMU_ReadData(void) {
 	    if (rx_buffer[0] == '*') {
 	    	float roll, pitch;
 		    sscanf(rx_buffer, "*%f,%f,%f", &roll, &pitch, &imu_data.yaw);
-
 
 			IMU_Filter(&imu_data);
 
@@ -68,6 +68,19 @@ IMU_Data IMU_FindClosest(uint32_t target_tick) {
 	return best;
 }
 
+void IMU_RxCallback_RPI(void) {
+     imu_request_flag = 1;
+ }
+
+
+void IMU_Process(void) {
+      if (!imu_request_flag) return;
+      imu_request_flag = 0;
+
+      char buf[32];
+      snprintf(buf, sizeof(buf), "%.2f\n",imu_data.yaw_f);
+      HAL_UART_Transmit(&huart1, (uint8_t*)buf, strlen(buf), 100);
+  }
 
 
 void IMU_RxCallback(void) {
