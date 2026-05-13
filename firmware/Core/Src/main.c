@@ -122,12 +122,8 @@ int main(void)
   MX_USART1_UART_Init();
   MX_UART4_Init();
   MX_CRC_Init();
-<<<<<<< HEAD
-=======
-  MX_TIM4_Init();
->>>>>>> 5e2fc0caf63554d932c8d3ba78eb47c51e92fd2a
   /* USER CODE BEGIN 2 */
-
+  MX_TIM4_Init();
   BME280_Init();
   IMU_Init();
   Motor_Init();
@@ -143,26 +139,11 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-<<<<<<< HEAD
       IMU_ReadData();
       BME280_Process();
       IMU_Process();
 
 	  Process_By_Mode();
-=======
-	  BME280_ReadData(&bme_data);
-	  
-	  IMU_Data matched = IMU_FindClosest(bme_data.bme_tick);
-
-	  packet.bme_data = bme_data;
-	  packet.imu_data = matched;
-	  packet.tick = bme_data.bme_tick;
-
-	  packet.pid_error = nav.error;
-	  packet.pid_output = nav.output;
-	  
-	  UART_SendPacket(&huart2, &packet);
->>>>>>> 5e2fc0caf63554d932c8d3ba78eb47c51e92fd2a
 
   }
   /* USER CODE END 3 */
@@ -268,6 +249,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
     	Process_By_Mode();
     }
 }
+
 /* USER CODE END 4 */
 
 /**
