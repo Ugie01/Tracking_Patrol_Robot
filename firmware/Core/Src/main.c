@@ -19,6 +19,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "crc.h"
+#include "dma.h"
 #include "i2c.h"
 #include "tim.h"
 #include "usart.h"
@@ -115,6 +116,7 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_TIM2_Init();
   MX_I2C1_Init();
   MX_USART2_UART_Init();
@@ -122,8 +124,8 @@ int main(void)
   MX_USART1_UART_Init();
   MX_UART4_Init();
   MX_CRC_Init();
-  /* USER CODE BEGIN 2 */
   MX_TIM4_Init();
+  /* USER CODE BEGIN 2 */
   BME280_Init();
   IMU_Init();
   Motor_Init();
@@ -139,12 +141,11 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-      IMU_ReadData();
+	  IMU_ReadData();
       BME280_Process();
       IMU_Process();
 
 	  Process_By_Mode();
-
   }
   /* USER CODE END 3 */
 }
@@ -199,7 +200,7 @@ void SystemClock_Config(void)
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 	if (huart->Instance == USART3) {
 		IMU_RxCallback();
-	} else if (huart->Instance == UART4) {
+	}else if (huart->Instance == UART4) {
 		BLT_ProcessPacket();
 	} else if (huart->Instance == USART1) {
 	      switch (rpi_state) {
@@ -245,11 +246,9 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
     if (htim->Instance == TIM4) {
-    	IMU_ReadData();
     	Process_By_Mode();
     }
 }
-
 /* USER CODE END 4 */
 
 /**
