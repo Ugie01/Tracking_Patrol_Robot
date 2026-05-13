@@ -35,6 +35,9 @@ void Nav_DriveStraight(int base_speed, float current_yaw) {
 
     nav.error = error;
 
+    // 시간
+    float dt = 0.02f;
+
     // PID 연산
     float P = nav.Kp * error;
     nav.integral += error;

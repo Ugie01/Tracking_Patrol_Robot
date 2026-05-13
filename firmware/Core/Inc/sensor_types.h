@@ -26,6 +26,8 @@ typedef struct {
 	BME280_Data bme_data;
 	IMU_Data imu_data;
 	uint32_t tick;
+	float pid_error;
+	float pid_output;
 } SensorPacket;
 
 
