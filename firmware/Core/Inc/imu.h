@@ -14,6 +14,8 @@
 #include "usart.h"
 #include "string.h"
 
+void IMU_RxCallback_RPI(void);
+void IMU_Process(void);
 void IMU_ReadData(void);
 void IMU_RxCallback(void);
 void IMU_Init(void);

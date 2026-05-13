@@ -16,11 +16,13 @@ char rx_buffer[100];
 int buffer_idx = 0;
 int data_ready = 0;
 
+
+static volatile uint8_t imu_request_flag = 0;
+
+
 // 필터링 전용
 static float yaw_f = 0.0f;
 static float alpha = 0.95f;
-
-extern IMU_Data imu_data;
 
 // 링버퍼
 static IMU_Data imu_buf[IMU_BUF_SIZE];
@@ -53,6 +55,20 @@ void IMU_Filter(IMU_Data *data) {
 	yaw_f   = alpha * data->yaw   + (1.0f - alpha) * yaw_f;
 	data->yaw_f   = yaw_f;
 }
+
+void IMU_RxCallback_RPI(void) {
+     imu_request_flag = 1;
+ }
+
+
+void IMU_Process(void) {
+      if (!imu_request_flag) return;
+      imu_request_flag = 0;
+
+      char buf[32];
+      snprintf(buf, sizeof(buf), "%.2f\n",imu_data.yaw_f);
+      HAL_UART_Transmit(&huart1, (uint8_t*)buf, strlen(buf), 100);
+  }
 
 
 
