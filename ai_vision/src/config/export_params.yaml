@@ -1,0 +1,20 @@
+# ----------------------------------------
+# TFLite 변환 및 최적화 설정 파일
+# ----------------------------------------
+
+
+# 입력 설정
+imgsz: [480, 640]  # [height, width] 순서로 입력 (라즈베리파이여 연동된 웹캠에서 전송될 데이터 사이즈 : 640*480 (width*height))
+format: 'tflite'
+
+# 최적화 옵션
+float16: True       # FP16 변환 여부
+int8: True          # INT8 양자화 여부 (PTQ)
+
+# NMS 및 추론 설정 (TFLite 내부 포함용)
+conf_thres: 0.25
+iou_thres: 0.45
+
+
+# 경로 설정
+output_dir: "../models/tflite_models/v1"
