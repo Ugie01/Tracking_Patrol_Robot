@@ -9,6 +9,7 @@
 #include "motor.h"
 
 extern uint8_t target_dir;
+float target_angle = 0.0f;
 
 PID_Navigation nav;
 
@@ -26,6 +27,30 @@ void Nav_Reset(float current_yaw) {
     nav.prev_error = 0.0f;
     nav.integral = 0.0f;
 }
+
+
+/*
+ * 타겟 각도를 사용하여 로봇 회전
+ */
+uint8_t Nav_RotateTo(float target_angle, float current_yaw) {
+  float error = target_angle - current_yaw;
+
+  if (error > 180.0f)  error -= 360.0f;
+  if (error < -180.0f) error += 360.0f;
+
+//  if (fabsf(error) <= ROTATE_THRESHOLD) {
+//	  Stop_Robot();
+//	  return 1;
+//  }
+
+  if (error > 0) {
+        Move_Robot(1, ROTATE_SPEED, 0, ROTATE_SPEED);
+  } else {
+    	Move_Robot(0, ROTATE_SPEED, 1, ROTATE_SPEED);
+  }
+  return 0;
+}
+
 
 void Nav_DriveStraight(int base_speed, float current_yaw) {
     float error = nav.target_yaw - current_yaw;

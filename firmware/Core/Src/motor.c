@@ -43,15 +43,15 @@ void Stop_Robot(void) {
     Move_Robot(0, 0, 0, 0);
 }
 
-void Motor_SetSpeed(int16_t left, int16_t right) {
-    uint8_t l_dir = (left >= 0) ? DIR_FORWARD : DIR_BACKWARD;
-    uint8_t r_dir = (right >= 0) ? DIR_FORWARD : DIR_BACKWARD;
-
-    uint16_t l_spd = abs(left);
-    uint16_t r_spd = abs(right);
-
-    if (l_spd > MOTOR_MAX_SPEED) l_spd = MOTOR_MAX_SPEED;
-    if (r_spd > MOTOR_MAX_SPEED) r_spd = MOTOR_MAX_SPEED;
-
-    Move_Robot(l_dir, (uint8_t)l_spd, r_dir, (uint8_t)r_spd);
-}
+//void Motor_SetSpeed(int16_t left, int16_t right) {
+//    uint8_t l_dir = (left >= 0) ? DIR_FORWARD : DIR_BACKWARD;
+//    uint8_t r_dir = (right >= 0) ? DIR_FORWARD : DIR_BACKWARD;
+//
+//    uint16_t l_spd = abs(left);
+//    uint16_t r_spd = abs(right);
+//
+//    if (l_spd > MOTOR_MAX_SPEED) l_spd = MOTOR_MAX_SPEED;
+//    if (r_spd > MOTOR_MAX_SPEED) r_spd = MOTOR_MAX_SPEED;
+//
+//    Move_Robot(l_dir, (uint8_t)l_spd, r_dir, (uint8_t)r_spd);
+//}

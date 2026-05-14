@@ -47,9 +47,9 @@ void BLT_ProcessPacket(void) {
             uint8_t mode = bl_buffer[1];
             Set_RobotMode(mode);
 
-            nav.Kp = (float)bl_buffer[6] * 0.1f;
-			nav.Ki = (float)bl_buffer[7] * 0.01f;
-			nav.Kd = (float)bl_buffer[8] * 0.1f;
+            nav.Kp = (float)bl_buffer[6] * 0.25f;
+			nav.Ki = (float)bl_buffer[7] * 0.02f;
+			nav.Kd = (float)bl_buffer[8] * 0.02f;
 
             if (mode == MODE_MANUAL) {
                 if (bl_buffer[2] == bl_buffer[4] && bl_buffer[3] == bl_buffer[5] && bl_buffer[3] > 0) {

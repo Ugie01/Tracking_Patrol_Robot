@@ -144,8 +144,6 @@ int main(void)
 	  IMU_ReadData();
       BME280_Process();
       IMU_Process();
-
-	  Process_By_Mode();
   }
   /* USER CODE END 3 */
 }
@@ -228,11 +226,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 	        	  if (rpi_rx_buf == '\n') {
 	        		  rpi_str_buf[rpi_str_idx] = '\0';
 	        		  char *str = rpi_str_buf + 1;
-	        		  ////////////// 로그 테스트용
-	        		  char log[48];
-	        		  snprintf(log, sizeof(log), "[RX] t msg: %s\r\n", str);
-	        		  HAL_UART_Transmit(&huart2, (uint8_t*)log, strlen(log), 100);
-
+	        		  sscanf(str, "%f", &target_angle);
 	        		  rpi_state = 0;
 	        	  } else {
 	        		  if (rpi_str_idx < sizeof(rpi_str_buf) - 1)
