@@ -12,7 +12,9 @@
 //#define ROTATE_THRESHOLD 1.0f
 // 회전 임계값
 #define ROTATE_TRIGGER   10.0f
-#define ROTATE_SPEED 150
+#define ROTATE_SPEED	80
+#define NONE_TRIGGER 	100
+#define TARGET_ANGLE_NONE_SIGN 	200.0f
 
 extern float target_angle;
 //////////////////////////////////////
@@ -38,6 +40,7 @@ void Nav_Init(float p, float i, float d);
 void Nav_Reset(float current_yaw);
 void Nav_DriveStraight(int base_speed, float current_yaw);
 uint8_t Nav_RotateTo(float target_angle, float current_yaw);
+void Nav_Search(void) ;
 
 extern PID_Navigation nav;
 

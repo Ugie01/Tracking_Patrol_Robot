@@ -103,3 +103,7 @@ void Nav_DriveStraight(int base_speed, float current_yaw) {
 
     Move_Robot(target_dir, (uint8_t)left_speed, target_dir, (uint8_t)right_speed);
 }
+
+void Nav_Search(void) {
+      Move_Robot(1, ROTATE_SPEED, 0, ROTATE_SPEED);
+  }
