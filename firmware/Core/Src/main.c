@@ -36,7 +36,6 @@
 #include "blt.h"
 #include "mode.h"
 #include "motor.h"
-#include "navigation.h"
 #include "uart_protocol.h"
 /* USER CODE END Includes */
 
@@ -58,16 +57,13 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-BME280_Data bme_data = { 0 };
 IMU_Data imu_data = { 0 };
-SensorPacket packet = { 0 };
 
-char msg[256];
-
-extern PID_Navigation nav;
+//extern MOTOR_PID motor_pid;
 extern uint8_t is_straight_requested;
 extern uint8_t target_speed;
 extern uint8_t target_dir;
+
 
 // raspi 통신
 static uint8_t rpi_cmd = 0;
@@ -130,7 +126,7 @@ int main(void) {
 	IMU_Init();
 	Motor_Init();
 	BLT_Init();
-	Nav_Init(2.0f, 0.0f, 0.0f); // PID 튜닝위해 초기값 설정 Kp=2.0
+	MOTOR_PID_Init(2.0f, 0.0f, 0.0f); // PID 튜닝위해 초기값 설정 Kp=2.0
 	HAL_TIM_Base_Start_IT(&htim4);
 	/* USER CODE END 2 */
 
@@ -143,6 +139,7 @@ int main(void) {
 		IMU_ReadData();
 		BME280_Process();
 		IMU_Process();
+		Process_By_Mode();
 	}
 	/* USER CODE END 3 */
 }
@@ -238,7 +235,14 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 	if (htim->Instance == TIM4) {
-		Process_By_Mode();
+		float error = motor_pid.target_yaw - imu_data.yaw_f;
+	    if (error > 180.0f) error -= 360.0f;
+	    if (error < -180.0f) error += 360.0f;
+
+	    motor_pid.error = error;
+		if(error >= ROTATE_TRIGGER){
+			output_pid = Calculate_PID(error);
+		}
 	}
 }
 /* USER CODE END 4 */
