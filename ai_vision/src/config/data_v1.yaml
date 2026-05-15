@@ -1,0 +1,16 @@
+# ----------------------------------------
+# YOLOv8 데이터셋 설정 파일
+# ----------------------------------------
+
+
+path: ../data/dataset_v1/yolo  # 데이터셋 루트 경로
+train: train/images
+val: valid/images
+test: test/images
+
+nc: 3
+names: ['fire', 'person', 'weapon']
+
+
+# 키포인트 설정 
+kpt_shape: [11, 3] # 11개 키포인트 (x, y, visibility)

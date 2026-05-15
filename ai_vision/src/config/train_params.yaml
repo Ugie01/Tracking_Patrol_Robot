@@ -1,0 +1,14 @@
+# ----------------------------------------
+# 학습 하이퍼파라미터 설정 파일
+# ----------------------------------------
+
+
+model_type: yolo26n-pose.pt    # yolov11n-pose.pt,   yolo26n-pose.pt
+# imgsz: 640
+imgsz: [480, 640]  # [Height, Width] 순서! 웹캠 비율 학습 최적화 (* 참고 : 로보플로우 리사이징 : 가로*세로 = 640*480)
+epochs: 100
+batch: 16
+optimizer: 'auto'
+device: 0 # GPU 번호
+project: ../models/base_models
+name: v1
