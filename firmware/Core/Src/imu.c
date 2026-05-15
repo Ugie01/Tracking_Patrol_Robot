@@ -3,8 +3,7 @@
 #include <string.h>
 #include <stdio.h>
 
-#define IMU_BUF_SIZE 16
-#define DMA_BUF_SIZE 100
+#define DMA_BUF_SIZE 50
 
 extern UART_HandleTypeDef huart3;
 extern IMU_Data imu_data;
@@ -22,11 +21,6 @@ static volatile uint8_t imu_request_flag = 0;
 // 필터링 전용
 static float yaw_f = 0.0f;
 static float alpha = 0.95f;
-
-// 링버퍼
-static IMU_Data imu_buf[IMU_BUF_SIZE];
-static uint8_t imu_buf_head  = 0;
-static uint8_t imu_buf_count = 0;
 
 void IMU_ReadData(void) {
     memcpy(rx_buffer, (char*)dma_rx_buffer, DMA_BUF_SIZE);
@@ -68,17 +62,7 @@ void IMU_Process(void) {
 
 
 void IMU_RxCallback(void) {
-//	if (rx_data == '\n' || rx_data == '\r') {
-//	    rx_buffer[buffer_idx] = '\0';
-//	    data_ready = 1;
-//	    buffer_idx = 0;
-//	} else {
-//	    if (buffer_idx < 99) {
-//	        rx_buffer[buffer_idx++] = rx_data;
-//	    }
-//	}
-
-	HAL_UART_Receive_DMA(&huart3, &rx_data, sizeof(rx_data));
+	HAL_UART_Receive_DMA(&huart3, dma_rx_buffer, DMA_BUF_SIZE);
 }
 
 

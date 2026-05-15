@@ -16,6 +16,8 @@
 void Set_RobotMode(uint8_t mode);
 uint8_t Get_RobotMode(void);
 void Process_By_Mode(void);
+float Get_Diff(void) ;
+
 
 #endif /* INC_MODE_H_ */
 
