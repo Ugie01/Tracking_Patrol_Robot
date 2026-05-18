@@ -49,7 +49,8 @@ void Move_Robot(uint8_t left_dir, uint8_t left_speed, uint8_t right_dir, uint8_t
 float Calculate_PID(float error);
 void Straight_Robot(int base_speed, float *current_yaw, uint8_t target_dir);
 uint8_t Rotate_Robot(float error);
-void Object_Search(void);
+void Object_Search(float yaw, float last_yaw);
+uint8_t Adjust_Speed(float yaw, float last_yaw);
 void Stop_Robot(void);
 
 #endif /* INC_MOTOR_H_ */

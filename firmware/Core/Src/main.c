@@ -64,6 +64,8 @@ volatile uint8_t rpi_state = 0;
 volatile uint8_t rpi_str_idx = 0;
 volatile uint8_t rpi_rx_buf = 0;
 volatile uint8_t rpi_data_ready = 0;
+
+float yaw = 0.0f;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -123,8 +125,8 @@ int main(void)
 	Motor_PID_Init(1.8f, 0.05f, 0.15f); // PID 튜닝위해 초기값 설정 Kp=2.0
 	HAL_TIM_Base_Start_IT(&htim4);
 
-	static uint32_t last_time = 0;
-	last_time = HAL_GetTick();
+	uint32_t last_time = 0;
+	static float last_yaw = 0.0f;
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -136,22 +138,19 @@ int main(void)
 		IMU_ReadData();
 		BME280_Process();
 		IMU_Process();
-		Process_By_Mode();
+		yaw = imu_data.yaw_f;
+		uint32_t time = HAL_GetTick();
+		if(time - last_time >= 20){
+			Process_By_Mode(yaw, last_yaw);
+
+			last_time = time;
+			last_yaw = yaw;
+		}
 		if (rpi_data_ready && current_robot_mode == MODE_TRACKING) {
 		    char *str = rpi_str_buf + 1; // 't' 제외
 		    // sscanf는 메인 루프에서 실행하여 인터럽트 지연 방지
 		    sscanf(str, "%f,%hhu", &motor_pid.target_yaw, &rpi_stop_flag);
 		    rpi_data_ready = 0;
-		}
-
-		uint32_t time = HAL_GetTick();
-		if(time - last_time  >= 100){
-			uint8_t left_pwm = (uint8_t)(htim2.Instance->CCR1 & 0xFF);
-			uint8_t right_pwm = (uint8_t)(htim2.Instance->CCR2 & 0xFF);
-
-			Bluetooth_Send_Telemetry(&huart4, motor_pid.target_yaw, imu_data.yaw_f, left_pwm, right_pwm);
-
-			last_time = time;
 		}
 	}
   /* USER CODE END 3 */
@@ -216,8 +215,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 	if (htim->Instance == TIM4) {
-		static uint8_t cnt = 0;
-		cnt++;
+
 		// 직진 모드일 때만 PID 연산 및 누적 허용
 		if (is_straight_flag) {
 			motor_pid.error = Get_Diff();
@@ -234,24 +232,6 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 			motor_pid.integral = 0.0f;
 			motor_pid.prev_error = Get_Diff();
 			output_pid = 0.0f;
-		}
-
-		if(!MODE_MANUAL && cnt == 1){
-			static float last_yaw = 0.0f;
-			float diff = last_yaw - imu_data.yaw_f;
-
-			if (diff > 180.0f) diff -= 360.0f;
-			if (diff < -180.0f) diff += 360.0f;
-
-			// yaw값의 차이가 임계값보다 작으면 PWM(BASE_SPEED) 증가
-			if (fabsf(diff) < 0.2f) BASE_ROTATE_SPEED += 2;
-			else if (fabsf(diff) < 0.6f) BASE_ROTATE_SPEED -= 2;
-
-			if (BASE_ROTATE_SPEED >= 255) BASE_ROTATE_SPEED = 255;
-			else if (BASE_ROTATE_SPEED <= 0) BASE_ROTATE_SPEED = 0;
-
-			last_yaw=imu_data.yaw_f;
-			cnt = 0;
 		}
 	}
 }
@@ -289,31 +269,6 @@ void RPI_ProcessByte(uint8_t rx_data) {
             }
             break;
     }
-}
-
-void Bluetooth_Send_Telemetry(UART_HandleTypeDef *huart, float target_angle, float current_yaw, uint8_t left_pwm, uint8_t right_pwm)
-{
-    // 12바이트 고정 송신 버퍼 선언
-    uint8_t tx_packet[12];
-
-    // 1. Header 배치
-    tx_packet[0] = 0xAA;
-
-    // 2. Target Angle (float, 4바이트) 메모리 직접 복사 (리틀 엔디안 자동 반영)
-    memcpy(&tx_packet[1], &target_angle, sizeof(float));
-
-    // 3. Current Yaw (float, 4바이트) 메모리 직접 복사
-    memcpy(&tx_packet[5], &current_yaw, sizeof(float));
-
-    // 4. 모터 PWM 데이터 배치
-    tx_packet[9] = left_pwm;
-    tx_packet[10] = right_pwm;
-
-    // 5. Footer 배치
-    tx_packet[11] = 0x55;
-
-    // 6. HAL 라이브러리를 통한 UART 데이터 송신 (Timeout: 10ms)
-    HAL_UART_Transmit(&huart4, tx_packet, 12, 10);
 }
 
 /* USER CODE END 4 */
