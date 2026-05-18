@@ -10,7 +10,7 @@ static float alpha = 0.1f;
 
 
 static volatile uint8_t bme_request_flag = 0;
-volatile uint8_t rpi_rx_buf;
+extern volatile uint8_t rpi_rx_buf;
 
 // 데이터 보정값
 uint16_t dig_T1;
@@ -25,9 +25,7 @@ void BME280_ReadCalibration(void) {
 	dig_T3 = (calib[5] << 8) | calib[4];
 }
 
-/*
- * BME280 센서에서 온도 raw값을 읽어서 필터링 적용
- */
+// BME280 센서에서 온도 raw값을 읽어서 필터링 적용
 void BME280_Process(void) {
 	if (!bme_request_flag) return;
 	bme_request_flag = 0;
@@ -41,15 +39,10 @@ void BME280_Process(void) {
 	  ((int32_t)dig_T3)) >> 14;
 	      float temp = (float)(((var1 + var2) * 5 + 128) >> 8) / 100.0f;
 
-
-	char buf[16];
-	snprintf(buf, sizeof(buf), "%.2f\n", temp);
-	HAL_UART_Transmit(&huart1, (uint8_t*)buf, strlen(buf), 100);
+	HAL_UART_Transmit(&huart1, (uint8_t*)&temp, sizeof(float), 100);
 }
 
-/*
- * 필터 적용 -> 이동 평균 필터 / 저역 통과 필터
- */
+// 필터 적용 -> 이동 평균 필터 / 저역 통과 필터
 float BME280_Filter(float new_temp) {
 	// 이동 평균 필터 적용
     ma_buffer[ma_index % MA_SIZE] = new_temp;
@@ -68,14 +61,12 @@ void BME280_RxCallback(void) {
 	bme_request_flag = 1;
 }
 
-
 void BME280_Init(void) {
 	// 온도 x1 Normal 모드 설정
 	uint8_t config_meas = 0x27;
 	HAL_I2C_Mem_Write(&hi2c1, 0x77 << 1, 0xF4, 1, &config_meas, 1, 100);
 
 	// 보정값
-
 	BME280_ReadCalibration();
 
 	// 수신읽기

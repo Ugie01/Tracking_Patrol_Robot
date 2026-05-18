@@ -6,27 +6,39 @@
  */
 
 #include "motor.h"
-#include "tim.h"
-#include <stdlib.h>
 
-extern TIM_HandleTypeDef htim2;
-float output_pid = 0.0f;
-MOTOR_PID motor_pid;
+const uint8_t DIR_FORWARD = 0;	// 전진
+const uint8_t DIR_BACKWARD = 1;	// 후진
+//const uint8_t NONE_TRIGGER = 200;	// None 객체 필터링
+const float ROTATE_TRIGGER = 6.3f;	// 회전 임계값
+const float TARGET_ANGLE_NONE_SIGN = 200.0f;	// None 사인
 
+volatile float output_pid = 0.0f;
 
-void MOTOR_PID_Init(float p, float i, float d) {
-    motor_pid.Kp = p;
-    motor_pid.Ki = i;
-    motor_pid.Kd = d;
-    motor_pid.prev_error = 0.0f;
-    motor_pid.integral = 0.0f;
-    motor_pid.output_limit = 100.0f;
+uint8_t BASE_ROTATE_SPEED = 130;	// 회전 속도
+uint8_t BASE_STRAIGHT_SPEED = 130;	// 직진 속도
+
+MotorPID_t motor_pid;
+
+void Motor_PID_Init(float p, float i, float d) {
+	motor_pid.Kp = p;
+	motor_pid.Ki = i;
+	motor_pid.Kd = d;
+	motor_pid.output_limit = 120.0f;
+	motor_pid.i_limit = 100.0f;
 }
 
-void MOTOR_PID_Reset(float current_yaw) {
-    motor_pid.target_yaw = current_yaw;
-    motor_pid.prev_error = 0.0f;
-    motor_pid.integral = 0.0f;
+void Motor_PID_Reset(float current_yaw) {
+	motor_pid.target_yaw = current_yaw;
+	motor_pid.prev_error = 0.0f;
+	motor_pid.integral = 0.0f;
+	output_pid = 0.0f;
+}
+
+void Motor_PID_UpdateGain(float p, float i, float d){
+	motor_pid.Kp = p * 0.25f;		// 0 ~ 100 스케일링 -> 0.0 ~ 25.0
+	motor_pid.Ki = i * 0.02f;		// 0 ~ 100 스케일링 -> 0.0 ~ 20.0
+	motor_pid.Kd = d * 0.02f;		// 0 ~ 100 스케일링 -> 0.0 ~ 20.0
 }
 
 void Motor_Init(void) {
@@ -37,20 +49,22 @@ void Motor_Init(void) {
 void Move_Robot(uint8_t left_dir, uint8_t left_speed, uint8_t right_dir,
 		uint8_t right_speed) {
 
+	// 왼쪽 모터 전진
 	if (left_dir == DIR_FORWARD) {
-		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_0, GPIO_PIN_SET);
-		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_1, GPIO_PIN_RESET);
-	} else {
-		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_0, GPIO_PIN_RESET);
 		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_1, GPIO_PIN_SET);
+		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_0, GPIO_PIN_RESET);
+	} else {
+		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_1, GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_0, GPIO_PIN_SET);
 	}
 
+	// 오른쪽 모터 전진
 	if (right_dir == DIR_FORWARD) {
-		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_2, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_3, GPIO_PIN_SET);
-	} else {
-		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_2, GPIO_PIN_SET);
 		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_3, GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_2, GPIO_PIN_SET);
+	} else {
+		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_3, GPIO_PIN_SET);
+		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_2, GPIO_PIN_RESET);
 	}
 
 	__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, left_speed);
@@ -63,74 +77,63 @@ float Calculate_PID(float error) {
 
 	// PID 연산
 	float P = motor_pid.Kp * error;
+
 	motor_pid.integral += error * dt;
-	if (motor_pid.integral > 50.0f)
-		motor_pid.integral = 50.0f;
-	if (motor_pid.integral < -50.0f)
-		motor_pid.integral = -50.0f;
+	// Anti-windup
+	if (motor_pid.integral > motor_pid.i_limit) motor_pid.integral = motor_pid.i_limit;
+	if (motor_pid.integral < -motor_pid.i_limit) motor_pid.integral = -motor_pid.i_limit;
+
 	float I = motor_pid.Ki * motor_pid.integral;
 	float D = motor_pid.Kd * (error - motor_pid.prev_error) / dt;
 	motor_pid.prev_error = error;
 
-	float output = P + I + D;
+	motor_pid.output = P + I + D; // 구조체 업데이트
 
-	if (output > motor_pid.output_limit)
-		output = motor_pid.output_limit;
-	if (output < -motor_pid.output_limit)
-		output = -motor_pid.output_limit;
+	// 출력 제한
+	if (motor_pid.output > motor_pid.output_limit) motor_pid.output = motor_pid.output_limit;
+	if (motor_pid.output < -motor_pid.output_limit) motor_pid.output = -motor_pid.output_limit;
 
-	return output;
+	return motor_pid.output;
 }
 
 void Straight_Robot(int base_speed, float *current_yaw, uint8_t target_dir) {
-    float l_f, r_f;
+	float l_f, r_f;
+	float diff = Get_Diff();
+	if(diff > 0){
+		l_f = (float) base_speed + output_pid;
+		r_f = (float) base_speed - output_pid;
+	}
+	else {
+		l_f = (float) base_speed - output_pid;
+		r_f = (float) base_speed + output_pid;
+	}
 
-    if (target_dir == 1) { // 전진
-        l_f = (float)base_speed - output_pid;
-        r_f = (float)base_speed + output_pid;
-    }
-    else if (target_dir == 2) { // 후진
-        l_f = (float)base_speed + output_pid;
-        r_f = (float)base_speed - output_pid;
-    }
-    else {
-        l_f = (float)base_speed;
-        r_f = (float)base_speed;
-    }
+	if (l_f > 255.0f) l_f = 255.0f;
+	else if (l_f < 0.0f) l_f = 0.0f;
+	if (r_f > 255.0f) r_f = 255.0f;
+	else if (r_f < 0.0f) r_f = 0.0f;
 
-    // 속도 제한 (0~255)
-    int left_speed = (int)l_f;
-    int right_speed = (int)r_f;
+	// 속도 제한 (0~255)
+	uint8_t left_speed = (uint8_t) l_f;
+	uint8_t right_speed = (uint8_t) r_f;
 
-    if (left_speed > 255)  left_speed = 255;
-    if (left_speed < 0)    left_speed = 0;
-    if (right_speed > 255) right_speed = 255;
-    if (right_speed < 0)   right_speed = 0;
-
-    Move_Robot(target_dir, (uint8_t)left_speed, target_dir, (uint8_t)right_speed);
+	Move_Robot(target_dir, left_speed, target_dir, right_speed);
 }
 
-
-/*
- * 타겟 각도를 사용하여 로봇 회전
- */
-uint8_t Rotate_Robot(float target_angle, float current_yaw) {
-  float error = target_angle - current_yaw;
-
-  if (error > 180.0f)  error -= 360.0f;
-  if (error < -180.0f) error += 360.0f;
-
-  if (error > 0) {
-        Move_Robot(1, ROTATE_SPEED, 0, ROTATE_SPEED);
-  } else {
-    	Move_Robot(0, ROTATE_SPEED, 1, ROTATE_SPEED);
-  }
-  return 0;
+// 계산된 오차값으로 로봇 회전
+uint8_t Rotate_Robot(float error) {
+	// 에러가 양수면  우회전
+	if (error > 0) {
+		Move_Robot(DIR_FORWARD, BASE_ROTATE_SPEED, DIR_BACKWARD, BASE_ROTATE_SPEED);
+	} else {
+		Move_Robot(DIR_BACKWARD, BASE_ROTATE_SPEED, DIR_FORWARD, BASE_ROTATE_SPEED);
+	}
+	return 0;
 }
 
 void Object_Search(void) {
-      Move_Robot(1, ROTATE_SPEED, 0, ROTATE_SPEED);
-  }
+	Move_Robot(DIR_BACKWARD, BASE_ROTATE_SPEED, DIR_FORWARD, BASE_ROTATE_SPEED);
+}
 
 void Stop_Robot(void) {
 	Move_Robot(0, 0, 0, 0);

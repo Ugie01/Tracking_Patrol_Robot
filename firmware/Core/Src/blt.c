@@ -6,30 +6,26 @@
  */
 
 #include "blt.h"
-#include "usart.h"
-#include "mode.h"
-#include "motor.h"
 
-uint8_t bl_data;
-uint8_t bl_buffer[BT_PACKET_SIZE];
-int bl_index = 0;
+volatile uint8_t bl_data = 0;
+volatile uint8_t bl_index = 0;
+volatile uint8_t is_straight_flag = 0;
+uint8_t bl_buffer[BT_PACKET_SIZE] = { };
 
-uint8_t target_speed = 0;
-uint8_t target_dir = 0;
-uint8_t is_straight_requested = 0;
+uint8_t robot_L_dir = 0;
+uint8_t robot_L_speed = 0;
+uint8_t robot_R_dir = 0;
+uint8_t robot_R_speed = 0;
 
-extern MOTOR_PID motor_pid;
+extern MotorPID_t motor_pid;
 extern void Set_RobotMode(uint8_t mode);
-extern void Move_Robot(uint8_t left_dir, uint8_t left_speed, uint8_t right_dir,
-		uint8_t right_speed);
 
 void BLT_Init(void) {
-	bl_index = 0;
 	BLT_StartReceive();
 }
 
 void BLT_StartReceive() {
-	HAL_UART_Receive_IT(&huart4, &bl_data, 1);
+	HAL_UART_Receive_IT(&huart4, (uint8_t *)&bl_data, 1);
 }
 
 void BLT_ProcessPacket(void) {
@@ -41,29 +37,33 @@ void BLT_ProcessPacket(void) {
 	bl_buffer[bl_index++] = bl_data;
 
 	if (bl_index >= BT_PACKET_SIZE) {
-		if (bl_buffer[BT_PACKET_SIZE - 1] == BT_END_BYTE) {
+		if (bl_buffer[0] == BT_START_BYTE && bl_buffer[BT_PACKET_SIZE - 1] == BT_END_BYTE) {
+			uint8_t mode = bl_buffer[1];
+			Set_RobotMode(mode);
 
-			if (bl_buffer[0] == BT_START_BYTE && bl_buffer[9] == BT_END_BYTE) {
-
-				uint8_t mode = bl_buffer[1];
-				Set_RobotMode(mode);
-
-				motor_pid.Kp = (float) bl_buffer[6] * 0.25f;
-				motor_pid.Ki = (float) bl_buffer[7] * 0.02f;
-				motor_pid.Kd = (float) bl_buffer[8] * 0.02f;
-
-				if (mode == MODE_MANUAL) {
-					if (bl_buffer[2] == bl_buffer[4] && bl_buffer[3] == bl_buffer[5] && bl_buffer[3] > 0) {
-						is_straight_requested = 1;
-						target_dir = bl_buffer[2];
-						target_speed = bl_buffer[3];
-					} else {
-						is_straight_requested = 0;
-					}
+			if (mode == MODE_MANUAL) {
+				// 전진 또는 후진하는 상황 (전진: 0, 0, Left Speed, 0, Right Speed, P, I, D)
+				if (bl_buffer[2] == bl_buffer[4] && bl_buffer[3] == bl_buffer[5]
+						&& bl_buffer[3] > 0) {
+					is_straight_flag = 1;
+				}
+				// 좌회전하는 상황 0, 1, Left Speed, 0 Right Speed, P, I, D
+				// 우회전하는 상황 0, 0, Left Speed, 1 Right Speed, P, I, D
+				// 뒤는 1, 앞은 0
+				else {
+					is_straight_flag = 0;
 				}
 			}
+
+			robot_L_dir = bl_buffer[2];
+			robot_L_speed = bl_buffer[3];
+			robot_R_dir = bl_buffer[4];
+			robot_R_speed = bl_buffer[5];
+
+			Motor_PID_UpdateGain((float) bl_buffer[6], (float) bl_buffer[7], (float) bl_buffer[8]);
 		}
 		bl_index = 0;
 	}
+
 	BLT_StartReceive();
 }
