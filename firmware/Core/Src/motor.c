@@ -9,15 +9,17 @@
 
 const uint8_t DIR_FORWARD = 0;	// 전진
 const uint8_t DIR_BACKWARD = 1;	// 후진
-//const uint8_t NONE_TRIGGER = 200;	// None 객체 필터링
 const float ROTATE_TRIGGER = 6.3f;	// 회전 임계값
 const float TARGET_ANGLE_NONE_SIGN = 200.0f;	// None 사인
-
 volatile float output_pid = 0.0f;
+volatile float diff_search = 0.0f;
+//float last_yaw = 0.0f;
+uint32_t cnt = 0;
+float *ds;
 
 uint8_t BASE_ROTATE_SPEED = 130;	// 회전 속도
 uint8_t BASE_STRAIGHT_SPEED = 130;	// 직진 속도
-
+uint8_t SEARCH_SPEED = 100;
 MotorPID_t motor_pid;
 
 void Motor_PID_Init(float p, float i, float d) {
@@ -35,7 +37,7 @@ void Motor_PID_Reset(float current_yaw) {
 	output_pid = 0.0f;
 }
 
-void Motor_PID_UpdateGain(float p, float i, float d){
+void Motor_PID_UpdateGain(float p, float i, float d) {
 	motor_pid.Kp = p * 0.25f;		// 0 ~ 100 스케일링 -> 0.0 ~ 25.0
 	motor_pid.Ki = i * 0.02f;		// 0 ~ 100 스케일링 -> 0.0 ~ 20.0
 	motor_pid.Kd = d * 0.02f;		// 0 ~ 100 스케일링 -> 0.0 ~ 20.0
@@ -80,8 +82,10 @@ float Calculate_PID(float error) {
 
 	motor_pid.integral += error * dt;
 	// Anti-windup
-	if (motor_pid.integral > motor_pid.i_limit) motor_pid.integral = motor_pid.i_limit;
-	if (motor_pid.integral < -motor_pid.i_limit) motor_pid.integral = -motor_pid.i_limit;
+	if (motor_pid.integral > motor_pid.i_limit)
+		motor_pid.integral = motor_pid.i_limit;
+	if (motor_pid.integral < -motor_pid.i_limit)
+		motor_pid.integral = -motor_pid.i_limit;
 
 	float I = motor_pid.Ki * motor_pid.integral;
 	float D = motor_pid.Kd * (error - motor_pid.prev_error) / dt;
@@ -90,8 +94,10 @@ float Calculate_PID(float error) {
 	motor_pid.output = P + I + D; // 구조체 업데이트
 
 	// 출력 제한
-	if (motor_pid.output > motor_pid.output_limit) motor_pid.output = motor_pid.output_limit;
-	if (motor_pid.output < -motor_pid.output_limit) motor_pid.output = -motor_pid.output_limit;
+	if (motor_pid.output > motor_pid.output_limit)
+		motor_pid.output = motor_pid.output_limit;
+	if (motor_pid.output < -motor_pid.output_limit)
+		motor_pid.output = -motor_pid.output_limit;
 
 	return motor_pid.output;
 }
@@ -99,19 +105,22 @@ float Calculate_PID(float error) {
 void Straight_Robot(int base_speed, float *current_yaw, uint8_t target_dir) {
 	float l_f, r_f;
 	float diff = Get_Diff();
-	if(diff > 0){
+	if (diff > 0) {
 		l_f = (float) base_speed + output_pid;
 		r_f = (float) base_speed - output_pid;
-	}
-	else {
+	} else {
 		l_f = (float) base_speed - output_pid;
 		r_f = (float) base_speed + output_pid;
 	}
 
-	if (l_f > 255.0f) l_f = 255.0f;
-	else if (l_f < 0.0f) l_f = 0.0f;
-	if (r_f > 255.0f) r_f = 255.0f;
-	else if (r_f < 0.0f) r_f = 0.0f;
+	if (l_f > 255.0f)
+		l_f = 255.0f;
+	else if (l_f < 0.0f)
+		l_f = 0.0f;
+	if (r_f > 255.0f)
+		r_f = 255.0f;
+	else if (r_f < 0.0f)
+		r_f = 0.0f;
 
 	// 속도 제한 (0~255)
 	uint8_t left_speed = (uint8_t) l_f;
@@ -124,15 +133,40 @@ void Straight_Robot(int base_speed, float *current_yaw, uint8_t target_dir) {
 uint8_t Rotate_Robot(float error) {
 	// 에러가 양수면  우회전
 	if (error > 0) {
-		Move_Robot(DIR_FORWARD, BASE_ROTATE_SPEED, DIR_BACKWARD, BASE_ROTATE_SPEED);
+		Move_Robot(DIR_FORWARD, BASE_ROTATE_SPEED, DIR_BACKWARD,
+				BASE_ROTATE_SPEED);
 	} else {
-		Move_Robot(DIR_BACKWARD, BASE_ROTATE_SPEED, DIR_FORWARD, BASE_ROTATE_SPEED);
+		Move_Robot(DIR_BACKWARD, BASE_ROTATE_SPEED, DIR_FORWARD,
+				BASE_ROTATE_SPEED);
 	}
 	return 0;
 }
 
-void Object_Search(void) {
-	Move_Robot(DIR_BACKWARD, BASE_ROTATE_SPEED, DIR_FORWARD, BASE_ROTATE_SPEED);
+void Object_Search(float yaw, float last_yaw) {
+	uint8_t speed = Adjust_Speed(yaw, last_yaw);
+	Move_Robot(DIR_BACKWARD, speed, DIR_FORWARD, speed);
+}
+
+uint8_t Adjust_Speed(float yaw, float last_yaw) {
+//	static float last_yaw = 0.0f;
+//	float yaw = imu_data.yaw_f;
+	diff_search = last_yaw - yaw;
+
+	if (diff_search > 180.0f)
+		diff_search -= 360.0f;
+	if (diff_search < -180.0f)
+		diff_search += 360.0f;
+
+	if (SEARCH_SPEED >= 252)
+		SEARCH_SPEED = 252;
+	else if (SEARCH_SPEED <= 90)
+		SEARCH_SPEED = 90;
+
+	// yaw값의 차이가 임계값보다 작으면 PWM(BASE_SPEED) 증가
+	if (fabsf(diff_search) < 0.2f) SEARCH_SPEED += 2;
+	else if (fabsf(diff_search) > 0.4f) SEARCH_SPEED -= 2;
+
+	return SEARCH_SPEED;
 }
 
 void Stop_Robot(void) {

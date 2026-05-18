@@ -13,6 +13,7 @@ uint8_t current_robot_mode = 0;
 
 uint8_t rpi_stop_flag = 0;
 float target_angle = 0.0f;
+float test_diff = 0.0f;
 
 void Set_RobotMode(uint8_t mode) {
 	Stop_Robot();
@@ -23,8 +24,9 @@ uint8_t Get_RobotMode(void) {
 	return current_robot_mode;
 }
 
-void Process_By_Mode(void) {
+void Process_By_Mode(float yaw, float last_yaw) {
 	float diff = Get_Diff();
+	test_diff = diff;
 	switch (current_robot_mode) {
 
 	case MODE_TRACKING:
@@ -49,7 +51,7 @@ void Process_By_Mode(void) {
 			break;
 		case 4: // 객체 탐지 불가
 			is_straight_flag = 0; // 타이머 4의 자동 PID 연산 루프 강제 차단 (I항/D항 초기화)
-			Object_Search();		// 객체 재탐지
+			Object_Search(yaw, last_yaw);		// 객체 재탐지
 			break;
 		}
 		break;
@@ -67,7 +69,7 @@ void Process_By_Mode(void) {
 		} else {
 			is_first_entry = 1;
 			is_straight_flag = 0;
-			BASE_ROTATE_SPEED = robot_L_speed;
+//			BASE_ROTATE_SPEED = robot_L_speed;
 			Move_Robot(robot_L_dir, robot_L_speed, robot_R_dir, robot_R_speed);
 		}
 		break;
