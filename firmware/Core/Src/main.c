@@ -70,6 +70,7 @@ volatile uint8_t rpi_data_ready = 0;
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
 void RPI_ProcessByte(uint8_t rx_data);
+void Bluetooth_Send_Telemetry(UART_HandleTypeDef *huart, float target_angle, float current_yaw, uint8_t left_pwm, uint8_t right_pwm);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -121,6 +122,9 @@ int main(void)
 	BLT_Init();
 	Motor_PID_Init(1.8f, 0.05f, 0.15f); // PID 튜닝위해 초기값 설정 Kp=2.0
 	HAL_TIM_Base_Start_IT(&htim4);
+
+	static uint32_t last_time = 0;
+	last_time = HAL_GetTick();
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -138,6 +142,16 @@ int main(void)
 		    // sscanf는 메인 루프에서 실행하여 인터럽트 지연 방지
 		    sscanf(str, "%f,%hhu", &motor_pid.target_yaw, &rpi_stop_flag);
 		    rpi_data_ready = 0;
+		}
+
+		uint32_t time = HAL_GetTick();
+		if(time - last_time  >= 100){
+			uint8_t left_pwm = (uint8_t)(htim2.Instance->CCR1 & 0xFF);
+			uint8_t right_pwm = (uint8_t)(htim2.Instance->CCR2 & 0xFF);
+
+			Bluetooth_Send_Telemetry(&huart4, motor_pid.target_yaw, imu_data.yaw_f, left_pwm, right_pwm);
+
+			last_time = time;
 		}
 	}
   /* USER CODE END 3 */
@@ -276,6 +290,32 @@ void RPI_ProcessByte(uint8_t rx_data) {
             break;
     }
 }
+
+void Bluetooth_Send_Telemetry(UART_HandleTypeDef *huart, float target_angle, float current_yaw, uint8_t left_pwm, uint8_t right_pwm)
+{
+    // 12바이트 고정 송신 버퍼 선언
+    uint8_t tx_packet[12];
+
+    // 1. Header 배치
+    tx_packet[0] = 0xAA;
+
+    // 2. Target Angle (float, 4바이트) 메모리 직접 복사 (리틀 엔디안 자동 반영)
+    memcpy(&tx_packet[1], &target_angle, sizeof(float));
+
+    // 3. Current Yaw (float, 4바이트) 메모리 직접 복사
+    memcpy(&tx_packet[5], &current_yaw, sizeof(float));
+
+    // 4. 모터 PWM 데이터 배치
+    tx_packet[9] = left_pwm;
+    tx_packet[10] = right_pwm;
+
+    // 5. Footer 배치
+    tx_packet[11] = 0x55;
+
+    // 6. HAL 라이브러리를 통한 UART 데이터 송신 (Timeout: 10ms)
+    HAL_UART_Transmit(&huart4, tx_packet, 12, 10);
+}
+
 /* USER CODE END 4 */
 
 /**
