@@ -20,7 +20,7 @@ extern uint8_t current_robot_mode;
 void Set_RobotMode(uint8_t mode);
 uint8_t Get_RobotMode(void);
 void Process_By_Mode(float yaw, float last_yaw);
-float Get_Diff(void) ;
+float Get_Diff(float yaw) ;
 
 #endif /* INC_MODE_H_ */
 
