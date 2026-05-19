@@ -25,7 +25,7 @@ void BLT_Init(void) {
 }
 
 void BLT_StartReceive() {
-	HAL_UART_Receive_IT(&huart4, (uint8_t *)&bl_data, 1);
+	HAL_UART_Receive_IT(&huart4, (uint8_t*) &bl_data, 1);
 }
 
 void BLT_ProcessPacket(void) {
@@ -37,7 +37,8 @@ void BLT_ProcessPacket(void) {
 	bl_buffer[bl_index++] = bl_data;
 
 	if (bl_index >= BT_PACKET_SIZE) {
-		if (bl_buffer[0] == BT_START_BYTE && bl_buffer[BT_PACKET_SIZE - 1] == BT_END_BYTE) {
+		if (bl_buffer[0] == BT_START_BYTE
+				&& bl_buffer[BT_PACKET_SIZE - 1] == BT_END_BYTE) {
 			uint8_t mode = bl_buffer[1];
 			Set_RobotMode(mode);
 
@@ -60,7 +61,8 @@ void BLT_ProcessPacket(void) {
 			robot_R_dir = bl_buffer[4];
 			robot_R_speed = bl_buffer[5];
 
-			Motor_PID_UpdateGain((float) bl_buffer[6], (float) bl_buffer[7], (float) bl_buffer[8]);
+			Motor_PID_UpdateGain((float) bl_buffer[6], (float) bl_buffer[7],
+					(float) bl_buffer[8]);
 		}
 		bl_index = 0;
 	}
