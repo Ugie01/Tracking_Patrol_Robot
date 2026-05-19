@@ -72,7 +72,7 @@ void Move_Robot(uint8_t left_dir, uint8_t left_speed, uint8_t right_dir,
 	__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, right_speed);
 }
 
-float Calculate_PID(float error) {
+float Calculate_PID(float error, float current_yaw) {
 	// 시간 주기
 	float dt = 0.01f;
 
@@ -87,8 +87,17 @@ float Calculate_PID(float error) {
 		motor_pid.integral = -motor_pid.i_limit;
 
 	float I = motor_pid.Ki * motor_pid.integral;
-	float D = motor_pid.Kd * (error - motor_pid.prev_error) / dt;
-	motor_pid.prev_error = error;
+
+	float d_yaw = current_yaw - motor_pid.prev_yaw;
+	if (d_yaw > 180.0f) d_yaw -= 360.0f;
+	if (d_yaw < -180.0f) d_yaw += 360.0f;
+
+	// 주의: 센서값이 증가하면 오차는 감소하므로 앞에 -(마이너스)를 붙여야 함
+	float D = -motor_pid.Kd * (d_yaw / dt);
+	motor_pid.prev_yaw = current_yaw;
+
+//	float D = motor_pid.Kd * (error - motor_pid.prev_error) / dt;
+//	motor_pid.prev_error = error;
 
 	motor_pid.output = P + I + D; // 구조체 업데이트
 
@@ -101,12 +110,10 @@ float Calculate_PID(float error) {
 	return motor_pid.output;
 }
 
-void Straight_Robot(int base_speed, float *current_yaw, uint8_t target_dir) {
-	float diff = Get_Diff();
-
+void Straight_Robot(int base_speed, float diff, uint8_t target_dir, float yaw) {
 	// TIM4 인터럽트에 의해 20ms 주기로 호출되므로,
 	// 내부 dt = 0.02f 연산이 정확히 성립함
-	output_pid = Calculate_PID(diff);
+	output_pid = Calculate_PID(diff, yaw);
 
 	float l_f, r_f;
 //	l_f = (float) base_speed + output_pid;

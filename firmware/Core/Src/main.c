@@ -71,8 +71,6 @@ volatile uint8_t rpi_data_ready = 0;
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
 void RPI_ProcessByte(uint8_t rx_data);
-void Bluetooth_Send_Telemetry(UART_HandleTypeDef *huart, float target_angle,
-		float current_yaw, uint8_t left_pwm, uint8_t right_pwm);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -106,6 +104,7 @@ int main(void) {
 	/* USER CODE END SysInit */
 
 	/* Initialize all configured peripherals */
+
 	MX_GPIO_Init();
 	MX_DMA_Init();
 	MX_TIM2_Init();
@@ -121,11 +120,9 @@ int main(void) {
 	IMU_Init();
 	Motor_Init();
 	BLT_Init();
-	Motor_PID_Init(0.0f, 0.0f, 0.0f); // PID 튜닝위해 초기값 설정 Kp=2.0
+	Motor_PID_Init(0.0f, 0.0f, 0.0f); // PID 튜닝위해 초기값 설정
 	HAL_TIM_Base_Start_IT(&htim4);
 
-//   uint32_t last_time = 0;
-//   static float last_yaw = 0.0f;
 	/* USER CODE END 2 */
 
 	/* Infinite loop */
@@ -138,17 +135,15 @@ int main(void) {
 		BME280_Process();
 		IMU_Process();
 
-//      uint32_t time = HAL_GetTick();
-//      if(time - last_time >= 20){
-//         Process_By_Mode(imu_data.yaw_f, last_yaw);
-//
-//         last_time = time;
-//         last_yaw = imu_data.yaw_f;
-//      }
 		if (rpi_data_ready && current_robot_mode == MODE_TRACKING) {
 			char *str = rpi_str_buf + 1; // 't' 제외
-			// sscanf는 메인 루프에서 실행하여 인터럽트 지연 방지
-			sscanf(str, "%f,%hhu", &motor_pid.target_yaw, &rpi_stop_flag);
+			float new_target;
+
+//			 sscanf는 메인 루프에서 실행하여 인터럽트 지연 방지
+			sscanf(str, "%f,%hhu", &new_target, &rpi_stop_flag);
+//			노이즈 필터링 (이전 타겟 80% 유지, 새 타겟 20%만 반영)
+			motor_pid.target_yaw = (motor_pid.target_yaw * 0.8f)
+					+ (new_target * 0.2f);
 			rpi_data_ready = 0;
 		}
 	}
