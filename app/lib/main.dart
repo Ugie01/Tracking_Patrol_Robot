@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bluetooth_serial/flutter_bluetooth_serial.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:fl_chart/fl_chart.dart';
 
 void main() {
   runApp(const RobotControlApp());
@@ -59,18 +58,7 @@ class _UnifiedControlScreenState extends State<UnifiedControlScreen> {
   int _controlMode = 0; // 0: Slider, 1: Button, 2: Tracking
   int _trackingState = 0;
 
-  // 블루투스 수신용 링 버퍼 및 데이터 리스트
   final List<int> _rxBuffer = [];
-  List<FlSpot> _targetSpots = [];
-  List<FlSpot> _currentYawSpots = [];
-  double _graphTimerX = 0;
-  final int _maxGraphDisplayCount = 80;
-
-  // 모니터링 출력용 실수형 변수 변환 적용
-  double _monitoredTargetAngle = 0.0;
-  double _monitoredCurrentYaw = 0.0;
-  int _monitoredLeftPwm = 0;
-  int _monitoredRightPwm = 0;
 
   @override
   void initState() {
@@ -160,39 +148,10 @@ class _UnifiedControlScreenState extends State<UnifiedControlScreen> {
     finally { if (mounted) setState(() => _isConnecting = false); }
   }
 
-  // Float 데이터 디코딩 프로세스를 포함한 데이터 수신 처리부 (12-Byte 정렬)
   void _onDataReceived(Uint8List data) {
     _rxBuffer.addAll(data);
-
     while (_rxBuffer.length >= 12) {
       if (_rxBuffer[0] == 0xAA && _rxBuffer[11] == 0x55) {
-        // 12바이트 서브 리스트 추출 후 바이트 변환 뷰 바인딩
-        Uint8List packet = Uint8List.fromList(_rxBuffer.sublist(0, 12));
-        ByteData byteData = ByteData.sublistView(packet);
-
-        // 리틀 엔디안 방식으로 4바이트 Float 데이터 복원 추출
-        double targetAngle = byteData.getFloat32(1, Endian.little);
-        double currentYaw = byteData.getFloat32(5, Endian.little);
-
-        int leftPwm = _rxBuffer[9];
-        int rightPwm = _rxBuffer[10];
-
-        setState(() {
-          _monitoredTargetAngle = targetAngle;
-          _monitoredCurrentYaw = currentYaw;
-          _monitoredLeftPwm = leftPwm;
-          _monitoredRightPwm = rightPwm;
-
-          _targetSpots.add(FlSpot(_graphTimerX, targetAngle));
-          _currentYawSpots.add(FlSpot(_graphTimerX, currentYaw));
-          _graphTimerX += 1.0;
-
-          if (_targetSpots.length > _maxGraphDisplayCount) {
-            _targetSpots.removeAt(0);
-            _currentYawSpots.removeAt(0);
-          }
-        });
-
         _rxBuffer.removeRange(0, 12);
       } else {
         _rxBuffer.removeAt(0);
@@ -200,9 +159,11 @@ class _UnifiedControlScreenState extends State<UnifiedControlScreen> {
     }
   }
 
+  // 16진수 실시간 터미널 출력 로직이 결합된 데이터 송신부
   void _sendControlData(int leftSpeed, int rightSpeed) {
     bool isStopCommand = (leftSpeed == 0 && rightSpeed == 0);
 
+    // 수동모드 주행 제어 시에만 50ms 스로틀링 제한 적용 (정지 패킷은 즉시 전송 예외처리)
     if (_controlMode != 2 && !isStopCommand) {
       final now = DateTime.now();
       if (_lastSendTime != null && now.difference(_lastSendTime!).inMilliseconds < _throttleMs) return;
@@ -215,10 +176,18 @@ class _UnifiedControlScreenState extends State<UnifiedControlScreen> {
     int lPwm = leftSpeed.abs().clamp(0, 255);
     int rPwm = rightSpeed.abs().clamp(0, 255);
 
+    // [0xAA, 모드, L_방향, L_PWM, R_방향, R_PWM, P, I, D, 0x55] -> 10바이트 데이터 프레임 팩트 데이터 빌드
     Uint8List packet = Uint8List.fromList([
       0xAA, modeFlag, lDir, lPwm, rDir, rPwm,
       _pVal.toInt(), _iVal.toInt(), _dVal.toInt(), 0x55
     ]);
+
+    // -------------------------------------------------------------------------
+    // [실시간 터미널 출력 디버깅 영역] 블루투스가 끊겨있어도 패킷 분석이 가능하도록 상단 배치
+    String hexString = packet.map((b) => '0x${b.toRadixString(16).padLeft(2, '0').toUpperCase()}').join(', ');
+    String modeName = _controlMode == 0 ? "Slider" : (_controlMode == 1 ? "Button" : "Tracking");
+    debugPrint("[$modeName 모드 전송 로그] [$hexString]");
+    // -------------------------------------------------------------------------
 
     if (_isConnected && _connection != null) {
       try {
@@ -239,7 +208,7 @@ class _UnifiedControlScreenState extends State<UnifiedControlScreen> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     return DefaultTabController(
-      length: 3,
+      length: 2,
       child: Scaffold(
         appBar: AppBar(
           title: Row(
@@ -254,7 +223,6 @@ class _UnifiedControlScreenState extends State<UnifiedControlScreen> {
             tabs: [
               Tab(icon: Icon(Icons.directions_run), text: '주행 메인'),
               Tab(icon: Icon(Icons.tune), text: 'PID 튜닝'),
-              Tab(icon: Icon(Icons.analytics), text: '실시간 그래프'),
             ],
           ),
         ),
@@ -263,7 +231,6 @@ class _UnifiedControlScreenState extends State<UnifiedControlScreen> {
           children: [
             _buildDriveTab(colorScheme),
             _buildPidTab(colorScheme),
-            _buildGraphTab(colorScheme),
           ],
         ),
       ),
@@ -277,7 +244,7 @@ class _UnifiedControlScreenState extends State<UnifiedControlScreen> {
         child: Column(
           children: [
             _buildConnectionCard(colorScheme),
-            const SizedBox(height: 10),
+            const SizedBox(height: 15),
             _buildModeToggle(colorScheme),
             const SizedBox(height: 10),
             Container(height: 400, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24)), child: _buildCurrentModeUI()),
@@ -363,144 +330,6 @@ class _UnifiedControlScreenState extends State<UnifiedControlScreen> {
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildGraphTab(ColorScheme colorScheme) {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        children: [
-          // 상단 현재 데이터 상태 윈도우 보드
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _buildMonitorStatusTile("목표 각도", "${_monitoredTargetAngle.toStringAsFixed(2)}°", Colors.blue),
-              _buildMonitorStatusTile("현재 YAW", "${_monitoredCurrentYaw.toStringAsFixed(2)}°", Colors.red),
-              _buildMonitorStatusTile("모터 PWM", "L:$_monitoredLeftPwm\nR:$_monitoredRightPwm", Colors.purple),
-            ],
-          ),
-          const SizedBox(height: 20),
-          // 중앙 실시간 라인 그래픽 보드
-          Expanded(
-            child: Card(
-              elevation: 0,
-              color: Colors.white,
-              child: Padding(
-                padding: const EdgeInsets.only(right: 24.0, top: 24.0, bottom: 12.0, left: 10.0),
-                child: _targetSpots.isEmpty
-                    ? const Center(child: Text("ST보드로부터 데이터를 대기 중입니다...", style: TextStyle(color: Colors.grey)))
-                    : LineChart(
-                  LineChartData(
-                    minY: -180,
-                    maxY: 180,
-                    gridData: FlGridData(
-                      show: true,
-                      drawVerticalLine: false,
-                      horizontalInterval: 45,
-                      getDrawingHorizontalLine: (value) => FlLine(color: Colors.grey.shade200, strokeWidth: 1),
-                    ),
-                    titlesData: FlTitlesData(
-                      rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                      topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                      bottomTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                      leftTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true,
-                          interval: 45,
-                          getTitlesWidget: (value, meta) => Text('${value.toInt()}°', style: const TextStyle(fontSize: 10, color: Colors.black54)),
-                          reservedSize: 35,
-                        ),
-                      ),
-                    ),
-                    borderData: FlBorderData(show: true, border: Border.all(color: Colors.grey.shade300, width: 1)),
-                    lineBarsData: [
-                      LineChartBarData(
-                        spots: _targetSpots,
-                        isCurved: true,
-                        curveSmoothness: 0.1,
-                        color: Colors.blue,
-                        barWidth: 2,
-                        dotData: const FlDotData(show: false),
-                      ),
-                      LineChartBarData(
-                        spots: _currentYawSpots,
-                        isCurved: true,
-                        curveSmoothness: 0.1,
-                        color: Colors.red,
-                        barWidth: 2,
-                        dotData: const FlDotData(show: false),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // [수정 포인트] Row를 제거하고 Wrap 위젯을 도입하여 가로 깨짐(Overflow) 방지
-          Wrap(
-            spacing: 12,      // 가로 컴포넌트 간격
-            runSpacing: 10,   // 가로 폭 부족 시 줄바꿈된 행 간의 간격
-            alignment: WrapAlignment.spaceBetween,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              // 범례 텍스트 축소 및 배치 최적화
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _buildLegendIndicator(Colors.blue, "Target (Image)"),
-                  const SizedBox(width: 12),
-                  _buildLegendIndicator(Colors.red, "Current (Yaw)"),
-                ],
-              ),
-              // 제어 버튼 규격 조정
-              SizedBox(
-                height: 36,
-                child: ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.grey.shade100,
-                    foregroundColor: Colors.black87,
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                  ),
-                  onPressed: () => setState(() { _targetSpots.clear(); _currentYawSpots.clear(); }),
-                  icon: const Icon(Icons.refresh, size: 14),
-                  label: const Text("버퍼 초기화", style: TextStyle(fontSize: 12)),
-                ),
-              )
-            ],
-          ),
-          const SizedBox(height: 16),
-          _buildEmergencyStop(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMonitorStatusTile(String title, String val, Color textCol) {
-    return Container(
-      width: 105, height: 75,
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.grey.shade200)),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(title, style: const TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 4),
-          Text(val, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: textCol), textAlign: TextAlign.center),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLegendIndicator(Color col, String label) {
-    return Row(
-      children: [
-        Container(width: 12, height: 4, decoration: BoxDecoration(color: col, borderRadius: BorderRadius.circular(2))),
-        const SizedBox(width: 6),
-        Text(label, style: const TextStyle(fontSize: 11, color: Colors.black54, fontWeight: FontWeight.w500)),
-      ],
     );
   }
 
