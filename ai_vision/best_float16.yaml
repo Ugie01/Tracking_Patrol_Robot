@@ -1,0 +1,9 @@
+kpt_shape:
+- 11
+- 3
+names:
+  0: Fire
+  1: Person
+  2: Weapon
+nc: 3
+task: pose
