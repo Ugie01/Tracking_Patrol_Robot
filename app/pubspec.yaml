@@ -40,8 +40,6 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   shared_preferences: ^2.3.0 # 로컬 저장을 위해 추가된 라이브러리
-  fl_chart: ^0.69.0 # 실시간 그래프 출력을 위해 추가된 핵심 패키지
-
 dev_dependencies:
   flutter_test:
     sdk: flutter
