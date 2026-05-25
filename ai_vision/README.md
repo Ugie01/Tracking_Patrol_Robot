@@ -79,7 +79,7 @@
     *   Flask를 이용한 웹 스트리밍 기능을 제공합니다.
 
 *   `ai_vision/tracking_robot_yolo26n.py`:
-    *   YOLOv8 기반의 `yolo26n-pose.pt` 모델을 사용하여 객체 탐지와 자세 추정을 동시에 처리합니다.
+    *   YOLO26n-pose 기반의 `yolo26n-pose.pt` 모델을 사용하여 객체 탐지와 자세 추정을 동시에 처리합니다.
     *   Flask를 이용한 웹 스트리밍 기능을 제공합니다.
 
 *   `ai_vision/tracking_robot_11point.py`:
