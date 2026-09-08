@@ -1,3 +1,0 @@
-# ttttest!
-
-print("Hello, World!")

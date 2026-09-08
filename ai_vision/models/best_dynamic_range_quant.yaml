@@ -1,0 +1,7 @@
+task: pose
+nc: 3
+names:
+  0: Fire
+  1: Person
+  2: Weapon
+kpt_shape: [11, 3]
